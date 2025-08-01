@@ -10,6 +10,7 @@ google = oauth.register(
     name='google',
     client_id=os.environ.get("GOOGLE_CLIENT_ID"),
     client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    api_base_url='https://www.googleapis.com/oauth2/v2/',
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={
         'scope': 'openid email profile'
