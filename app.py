@@ -17,8 +17,8 @@ google = oauth.register(
     }
 )
 
-@app.route('/')
-def homepage():
+@app.route('/something')
+def homepage1():
     user = dict(session).get('user', None)
     return render_template('index.html', user=user)
 
@@ -39,3 +39,14 @@ def authorize():
 def logout():
     session.pop('user', None)
     return redirect('/')
+
+
+@app.route('/')
+def homepage():
+    from datetime import datetime
+    return render_template('index.html', year=datetime.now().year)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+

@@ -1,12 +1,32 @@
-<!DOCTYPE html>
-<html>
-<head><title>Client Portal</title></head>
-<body>
-  {% if user %}
-    <p>Welcome, {{ user.name }}!</p>
-    <p><a href="{{ url_for('logout') }}">Logout</a></p>
-  {% else %}
-    <p><a href="{{ url_for('login') }}">Login with Google</a></p>
-  {% endif %}
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-section">
+  <div class="hero-container">
+    <h1 class="display-5 fw-bold">Independent. Aligned. Focused.</h1>
+    <p class="lead text-muted mt-3">
+      A specialized investment platform driven by research, discipline, and long-term vision.
+    </p>
+    <a href="{{ url_for('login') }}" class="btn btn-dark mt-4 px-4 py-2">Client Portal</a>
+  </div>
+</section>
+
+<section class="about-section py-5">
+  <div class="about-wrapper">
+    <div class="about-text">
+      <h2 class="fw-bold">Who We Are</h2>
+      <p class="text-muted mt-3 text-justify">
+        Vega Investment Services is a boutique financial and trading advisory operation focused on delivering precision-driven,
+         value-added solutions in portfolio construction, financial risk management, and strategy optimization. Drawing 
+         on deep experience in energy markets and quantitative modeling, we specialize in uncovering asymmetric opportunities,
+          structuring risk-aware strategies, and bridging operational insight with data-driven decision-making. Whether you're
+           a family fund, trading desk, or a regional investor seeking an edge, Vega provides the tools, models, and strategic
+            clarity to make conviction-based decisions in uncertain environments.
+      </p>
+    </div>
+    <div class="about-img">
+      <img src="https://images.unsplash.com/photo-1581090700227-1e8e3c62b6a0" class="img-fluid rounded shadow-sm" alt="Office">
+    </div>
+  </div>
+</section>
+{% endblock %}
