@@ -90,190 +90,196 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
-<!-- Chart.js CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
 
 <script>
 let fundChart;
-let csvData = []; // [{date: 'YYYY-MM-DD', value: Number}]
+let csvRows = [];             // [{ date:'YYYY-MM-DD', series: {Fund: number|null, Dollar: ..., Firouzeh: ..., Gold: ...} }]
+let seriesNames = [];         // ['Fund','Dollar','Firouzeh','Gold']
 
 /* ---------- Helpers ---------- */
 
-// Detect the delimiter likely used by the header line
+// Detect delimiter from header
 function detectDelimiter(headerLine) {
-  const candidates = [',', ';', '\t', '|'];
+  const cands = [',',';','\t','|'];
   let best = ',', bestCount = 0;
-  for (const d of candidates) {
+  for (const d of cands) {
     const c = headerLine.split(d).length - 1;
     if (c > bestCount) { best = d; bestCount = c; }
   }
   return best;
 }
 
-// Robust numeric parser: handles %, thousands, decimal comma, NBSP, BOM, etc.
+// Robust numeric parser. If a % was present, convert to decimal.
 function parseNumber(s) {
   if (s == null) return NaN;
-  s = String(s).trim()
-    .replace(/^\uFEFF/, '')          // BOM
-    .replace(/\u00A0/g, '');         // NBSP
-
-  // Remove percent but remember to scale if needed later (not needed now; we plot raw)
-  const hadPercent = /%/.test(s);
+  s = String(s).trim().replace(/^\uFEFF/, '').replace(/\u00A0/g, '');
+  let hadPercent = /%/.test(s);
   s = s.replace(/%/g, '');
 
-  const hasComma = s.includes(',');
-  const hasDot = s.includes('.');
-
+  const hasComma = s.includes(','), hasDot = s.includes('.');
   if (hasComma && hasDot) {
-    // If last separator is a comma, treat comma as decimal and dots as thousands
-    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
-      s = s.replace(/\./g, '').replace(',', '.');
-    } else {
-      // last is dot -> dot is decimal, commas are thousands
-      s = s.replace(/,/g, '');
-    }
-  } else if (hasComma && !hasDot) {
-    // Only comma present: assume decimal comma
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',', '.');
+    else s = s.replace(/,/g,'');
+  } else if (hasComma) {
     s = s.replace(',', '.');
-  } else {
-    // Only dot or neither: remove any thousands commas just in case
-    s = s.replace(/,/g, '');
   }
-
   let v = parseFloat(s);
   if (!isFinite(v)) return NaN;
-
-  // If it had a percent sign and the value looks like e.g. "12.3", many exports mean 12.3%
-  // We are plotting RAW to match CSV visually; keep it as-is (no scaling).
+  if (hadPercent) v = v / 100;
   return v;
 }
 
-// Parse CSV text into [{date, value}]
-function parseCSV(csvText) {
+// Parse CSV to {date, series:{}}, auto-detect numeric columns (excluding date)
+function parseCSVMulti(csvText) {
   const lines = csvText
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(l => l.length > 0);
-
   if (lines.length < 2) throw new Error('CSV appears empty');
 
-  const header = lines[0].replace(/^\uFEFF/, ''); // strip BOM if present
-  const delim = detectDelimiter(header);
-  const headers = header.split(delim).map(h => h.trim().toLowerCase());
+  const headerRaw = lines[0].replace(/^\uFEFF/, '');
+  const delim = detectDelimiter(headerRaw);
+  const headerCells = headerRaw.split(delim).map(h => h.trim());
 
-  // Look for typical date + value/return/nav columns
-  const dateIdx = headers.findIndex(h =>
-    ['date','timestamp','day','nav_date'].includes(h)
-  );
-  let valIdx = headers.findIndex(h =>
-    ['value','return','cumulative_return','cum_return','nav','index','y'].includes(h)
-  );
-
-  // Fallback: if not found, assume first two columns are date, value
+  // Find date column (case-insensitive)
+  const lower = headerCells.map(h => h.toLowerCase());
+  const dateIdx = lower.findIndex(h => ['date','timestamp','day','nav_date'].includes(h));
   const dateCol = dateIdx >= 0 ? dateIdx : 0;
-  const valueCol = valIdx >= 0 ? valIdx : 1;
 
-  const out = [];
+  // Determine series columns = all except date
+  const seriesCols = headerCells
+    .map((name, idx) => ({ name: name.trim(), idx }))
+    .filter(col => col.idx !== dateCol);
+
+  // Normalize pretty names (preserve original case)
+  const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const parts = lines[i].split(delim);
-    if (parts.length <= Math.max(dateCol, valueCol)) continue;
+    if (parts.length <= dateCol) continue;
 
-    const d = parts[dateCol].trim();
-    const v = parseNumber(parts[valueCol]);
-    if (!d || !isFinite(v)) continue;
+    const dRaw = parts[dateCol]?.trim();
+    if (!dRaw) continue;
 
-    // Normalize date to YYYY-MM-DD if possible
-    const dt = new Date(d);
-    const iso = isNaN(dt.getTime()) ? d : dt.toISOString().split('T')[0];
+    const dt = new Date(dRaw);
+    const iso = isNaN(dt.getTime()) ? dRaw : dt.toISOString().split('T')[0];
 
-    out.push({ date: iso, value: v });
+    const rec = { date: iso, series: {} };
+    for (const col of seriesCols) {
+      const cell = parts[col.idx] != null ? parts[col.idx] : '';
+      const v = parseNumber(cell);
+      rec.series[col.name] = isFinite(v) ? v : null;
+    }
+    rows.push(rec);
   }
 
-  // Sort by date just in case
-  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  return out;
+  // Sort by date asc
+  rows.sort((a,b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  return {
+    rows,
+    names: seriesCols.map(c => c.name)
+  };
+}
+
+// Get first non-null numeric in array
+function firstValid(arr) {
+  for (const x of arr) {
+    if (x != null && isFinite(x)) return x;
+  }
+  return null;
 }
 
 /* ---------- Data Loading ---------- */
 
 async function loadCSVData() {
   try {
-    const response = await fetch('/static/fund_data.csv', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const csvText = await response.text();
+    const resp = await fetch('/static/fund_data.csv', { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
 
-    csvData = parseCSV(csvText);
+    const parsed = parseCSVMulti(text);
+    csvRows = parsed.rows;
+    seriesNames = parsed.names;
 
-    if (csvData.length === 0) throw new Error('No usable rows parsed');
+    if (!csvRows.length || !seriesNames.length) throw new Error('No usable data/series found');
 
-    // Initialize the date pickers to full range
-    document.getElementById('startDate').value = csvData[0].date;
-    document.getElementById('endDate').value   = csvData[csvData.length - 1].date;
-
-    console.log('CSV parsed:', {
-      rows: csvData.length,
-      first3: csvData.slice(0,3),
-      last3: csvData.slice(-3)
-    });
+    // Init date pickers to full range
+    document.getElementById('startDate').value = csvRows[0].date;
+    document.getElementById('endDate').value   = csvRows[csvRows.length - 1].date;
 
     updateChart();
   } catch (err) {
     console.error('Error loading/parsing CSV:', err);
-    alert('Could not read /static/fund_data.csv. Check delimiter, decimals, and headers.');
+    alert('Could not read /static/fund_data.csv. Check delimiter/headers and number formats.');
   }
 }
 
 /* ---------- Filtering & Chart ---------- */
 
-function filterDataByDateRange(startDate, endDate) {
+function filterByDate(startDate, endDate) {
   const s = new Date(startDate);
   const e = new Date(endDate);
   if (isNaN(s) || isNaN(e)) return [];
-  return csvData.filter(item => {
-    const t = new Date(item.date);
+  return csvRows.filter(r => {
+    const t = new Date(r.date);
     return !isNaN(t) && t >= s && t <= e;
   });
+}
+
+function rebaseSeries(values) {
+  // values: array of numbers or nulls within selected window
+  const base = firstValid(values);
+  if (base == null || !isFinite(base) || base <= -1) return values.map(_ => null);
+  return values.map(v => (v == null || !isFinite(v)) ? null : (((1 + v) / (1 + base)) - 1) * 100);
 }
 
 function updateChart() {
   const startDate = document.getElementById('startDate').value;
   const endDate   = document.getElementById('endDate').value;
-  if (!startDate || !endDate || csvData.length === 0) return;
+  if (!startDate || !endDate || !csvRows.length) return;
 
-  const filtered = filterDataByDateRange(startDate, endDate);
-  if (filtered.length === 0) {
+  const rows = filterByDate(startDate, endDate);
+  if (!rows.length) {
     console.warn('No data in selected range');
     return;
   }
 
-  const labels = filtered.map(d => d.date);
-  const series = filtered.map(d => d.value); // cumulative return in decimal, e.g., 0.02 = +2%
+  const labels = rows.map(r => r.date);
 
-  // Rebase: ((1 + R_t) / (1 + R_start)) - 1
-  const base = series[0];
-  if (!isFinite(base) || base <= -1) {
-    console.warn('Invalid base for rebasing'); 
-    return;
-  }
-  const pctValues = series.map(v => (((1 + v) / (1 + base)) - 1) * 100);
+  // Build datasets for each series
+  const datasets = [];
+  const palette = [
+    '#0d6efd', // blue
+    '#dc3545', // red
+    '#198754', // green
+    '#fd7e14', // orange
+    '#6f42c1', // purple
+    '#20c997', // teal
+  ];
+
+  seriesNames.forEach((name, i) => {
+    // Extract raw values for this series in window
+    const raw = rows.map(r => r.series[name]);
+    const rebasedPct = rebaseSeries(raw);
+
+    datasets.push({
+      label: name,
+      data: rebasedPct,
+      borderWidth: 2,
+      tension: 0.1,
+      borderColor: palette[i % palette.length],
+      backgroundColor: 'rgba(0,0,0,0)', // no fill; change if you want area
+      spanGaps: true,                   // skip nulls nicely
+    });
+  });
 
   const ctx = document.getElementById('fundChart').getContext('2d');
   if (fundChart) fundChart.destroy();
 
   fundChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Return since start (%)',
-        data: pctValues,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.1,
-        borderColor: '#007bff',
-        backgroundColor: 'rgba(0, 123, 255, 0.1)',
-      }]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -285,13 +291,22 @@ function updateChart() {
         }
       },
       plugins: {
-        title: { display: true, text: 'Vega Core Fund — Period Return (Rebased)' },
-        legend: { display: true, position: 'top' }
+        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
+        legend: { display: true, position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
+          }
+        }
       }
     }
   });
 }
+
 /* ---------- Events ---------- */
+['startDate','endDate'].forEach(id =>
+  document.getElementById(id).addEventListener('change', updateChart)
+);
 document.getElementById('updateChart').addEventListener('click', updateChart);
 window.addEventListener('load', loadCSVData);
 </script>
