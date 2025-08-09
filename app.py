@@ -47,6 +47,20 @@ def homepage():
     return render_template('index.html', year=datetime.now().year)
 
 
+
+@app.route('/fund')
+def fund():
+    from datetime import datetime
+    return render_template('fund.html', year=datetime.now().year)
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
 

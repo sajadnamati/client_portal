@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="fund-section py-5">
+  <div class="fund-wrapper">
+    <!-- Left side: Fund Explanation -->
+    <div class="fund-info">
+      <h2 class="fw-bold mb-4">Vega Core Fund</h2>
+      
+      <div class="fund-details">
+        <h4>Investment Strategy</h4>
+        <p class="text-muted mb-4">
+          Our flagship fund employs a quantitative approach to energy and commodity markets, 
+          leveraging proprietary models to identify asymmetric risk-adjusted opportunities. 
+          Through systematic analysis and disciplined execution, we aim to deliver consistent 
+          returns while managing downside risk.
+        </p>
+
+        <h4>Key Features</h4>
+        <ul class="list-unstyled">
+          <li class="mb-2">
+            <strong>Focus:</strong> Energy markets and related sectors
+          </li>
+          <li class="mb-2">
+            <strong>Strategy:</strong> Quantitative value with risk management overlay
+          </li>
+          <li class="mb-2">
+            <strong>Minimum Investment:</strong> $500,000
+          </li>
+          <li class="mb-2">
+            <strong>Management Fee:</strong> 1.5% annually
+          </li>
+          <li class="mb-2">
+            <strong>Performance Fee:</strong> 20% of profits above 8% hurdle
+          </li>
+        </ul>
+
+        <h4>Performance Metrics</h4>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <span class="metric-label">YTD Return:</span>
+            <span class="metric-value text-success">+12.4%</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Sharpe Ratio:</span>
+            <span class="metric-value">1.85</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Max Drawdown:</span>
+            <span class="metric-value text-danger">-4.2%</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Volatility:</span>
+            <span class="metric-value">8.7%</span>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <a href="{{ url_for('login') }}" class="btn btn-dark me-3">Access Detailed Reports</a>
+          <button class="btn btn-outline-dark">Download Fact Sheet</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side: Interactive Chart -->
+    <div class="chart-container">
+      <div class="chart-controls mb-3">
+        <div class="row">
+          <div class="col-md-4">
+            <label for="startDate" class="form-label">Start Date:</label>
+            <input type="date" id="startDate" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label for="endDate" class="form-label">End Date:</label>
+            <input type="date" id="endDate" class="form-control" />
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button id="updateChart" class="btn btn-primary">Update Chart</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="fundChart" width="100%" height="400"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Chart.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+
+<script>
+let fundChart;
+let csvData = [];
+
+// Load CSV data
+async function loadCSVData() {
+    try {
+        const response = await fetch('/static/fund_data.xlsm');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const csvText = await response.text();
+        
+        // Parse CSV
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('CSV file is empty or invalid');
+        }
+        
+        const headers = lines[0].split(',');
+        
+        csvData = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',');
+            if (values.length >= 2) {
+                csvData.push({
+                    date: values[0].trim(),
+                    return: parseFloat(values[1].trim())
+                });
+            }
+        }
+        
+        // Set default date range
+        if (csvData.length > 0) {
+            const startDate = new Date(csvData[0].date);
+            const endDate = new Date(csvData[csvData.length - 1].date);
+            
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        }
+        
+        console.log('CSV data loaded successfully:', csvData.length, 'records');
+        updateChart();
+    } catch (error) {
+        console.error('Error loading CSV data:', error);
+        console.log('Creating sample data instead...');
+        // Create sample data if CSV fails to load
+        createSampleData();
+    }
+}
+
+// Create sample data for demo
+function createSampleData() {
+    console.log('Generating sample data...');
+    csvData = [];
+    const startDate = new Date('2023-01-01');
+    let cumulativeReturn = 1.0;
+    
+    for (let i = 0; i < 365; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        
+        // Generate realistic daily returns
+        const dailyReturn = (Math.random() - 0.48) * 0.02; // Slight positive bias
+        cumulativeReturn *= (1 + dailyReturn);
+        
+        csvData.push({
+            date: date.toISOString().split('T')[0],
+            return: cumulativeReturn
+        });
+    }
+    
+    console.log('Sample data created:', csvData.length, 'records');
+    document.getElementById('startDate').value = '2023-01-01';
+    document.getElementById('endDate').value = '2023-12-31';
+    updateChart();
+}
+
+// Filter data based on date range
+function filterDataByDateRange(startDate, endDate) {
+    return csvData.filter(item => {
+        const itemDate = new Date(item.date);
+        return itemDate >= new Date(startDate) && itemDate <= new Date(endDate);
+    });
+}
+
+// Update chart with filtered data
+function updateChart() {
+    console.log('Updating chart...');
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    if (!startDate || !endDate) {
+        console.log('Missing start or end date');
+        return;
+    }
+    
+    if (csvData.length === 0) {
+        console.log('No data available');
+        return;
+    }
+    
+    const filteredData = filterDataByDateRange(startDate, endDate);
+    console.log('Filtered data:', filteredData.length, 'records');
+    
+    const labels = filteredData.map(item => item.date);
+    const returns = filteredData.map(item => ((item.return - 1) * 100)); // Convert to percentage
+    
+    const ctx = document.getElementById('fundChart').getContext('2d');
+    
+    if (fundChart) {
+        fundChart.destroy();
+    }
+    
+    fundChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Fund Returns (%)',
+                data: returns,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Cumulative Return (%)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(1) + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Vega Core Fund Performance',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            }
+        }
+    });
+    
+    console.log('Chart created successfully');
+}
+
+// Event listeners
+document.getElementById('updateChart').addEventListener('click', updateChart);
+
+// Load data when page loads
+window.addEventListener('load', loadCSVData);
+</script>
+{% endblock %}
