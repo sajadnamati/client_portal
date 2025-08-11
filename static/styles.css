@@ -132,7 +132,7 @@ footer {
 
 .chart-area {
   position: relative;
-  height: 670px;
+  height: 580px;
   margin-top: 1rem;
 }
 
@@ -275,3 +275,9 @@ footer {
   width: 100% !important;  /* fill the container */
   height: 100% !important; /* fill the container */
 }
+
+/* Slow the slide animation and add glow */
+.collapsing {
+  transition: height 2.8s ease !important;   /* Bootstrap animates height on .collapsing */
+}
+
