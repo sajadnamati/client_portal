@@ -1,0 +1,15 @@
+{
+  "investor@example.com": {
+    "name": "Arash Alavian",
+    "join_date": "2023-01-15",
+    "currency": "USD",
+    "performance_file": "investor-example-com-data.csv",
+    "transactions_file": "investor-example-com-transactions.csv"
+  },
+  "another@example.com": {
+    "name": "Sajjad Namati",
+    "join_date": "2024-05-10",
+    "currency": "EUR",
+    "performance_file": "sadjad-namati-gmail-com-data.csv"
+  }
+}

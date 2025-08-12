@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="fund-section py-5">
+  <div class="fund-wrapper">
+
+    <!-- Personalized Greeting 
+    <div class="fund-info">
+      <h2 class="fw-bold mb-4">
+        Welcome back{% if user %}, {{ user.name }}{% endif %}
+      </h2>
+      <p class="text-muted">
+        This is your personalized investment report.
+      </p>
+    </div>
+-->
+
+
+    <!-- Left side: Fund Explanation -->
+    <div class="fund-info">
+      <h2 class="fw-bold mb-4">Vega Core Fund</h2>
+      
+      <div class="fund-details">
+        <h4>Welcome back, Dear {% if investor_name %} {{ investor_name }}{% endif %}</h4>
+        <p class="text-muted mb-4 text-justify">
+          Thanks for being with us, hear is your personalized investment report.
+        </p>
+
+        <h4>Key Features</h4>
+        <ul class="list-unstyled">
+          <li class="mb-2"><strong>Focus:</strong> Future Market</li>
+          <li class="mb-2"><strong>Strategy:</strong> Volatility-Managed Calendar Spread</li>
+          <li class="mb-2"><strong>Minimum Investment:</strong> $5000</li>
+          <li class="mb-2"><strong>Management Fee:</strong> 2% annually</li>
+          <li class="mb-2"><strong>Performance Fee:</strong> 25% of profits above 50% hurdle</li>
+        </ul>
+
+        <h4>Performance Metrics</h4>
+        <h4>Performance Metrics</h4>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <span class="metric-label">YTD Portfolio Return:</span>
+            <span class="metric-value text-success">—</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Portfolio Value (NAV):</span>
+            <span class="metric-value">—</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Annualized Return:</span>
+            <span class="metric-value text-success">—</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Locked-In Return:</span>
+            <span class="metric-value">—</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right side: Interactive Chart -->
+    <div class="chart-container">
+      <h4>Performance Chart</h4>
+      <div class="chart-controls mb-3">
+        <div class="row">
+          <div class="col-md-4">
+            <label for="startDate" class="form-label">Start Date:</label>
+            <input type="date" id="startDate" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <label for="endDate" class="form-label">End Date:</label>
+            <input type="date" id="endDate" class="form-control" />
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button id="updateChart" class="btn btn-primary">Update Chart</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="fundChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Second row: Compensation Structure -->
+  <div class="fund-wrapper">
+    <div class="fund-info">
+      <h4 class="fw-bold mb-3">Compensation Structure</h4>
+      
+        <p class="text-muted text-justify mt-3">
+          Our compensation model is designed to align the interests of the fund manager with those of our investors,
+          ensuring that meaningful rewards are earned only when we generate exceptional value. The cornerstone of this
+          philosophy is the <strong>hurdle rate</strong> — a predefined minimum return threshold that must be achieved
+          before any performance fees are charged. By setting a high hurdle rate, in our case 40% annually, we create a
+          results-driven environment that rewards strategic risk-taking and disciplined execution, while protecting
+          investors from paying performance fees during periods of sub-par market conditions. This approach ensures that
+          we only participate in profits that represent substantial outperformance beyond the already ambitious benchmark.
+        </p>
+
+        <div class="mt-4">
+          <ul class="list-group">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Fixed Management Fee<span>2% annually *</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Hurdle Rate<span>50% annually *</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              Manager’s Share of Return Above Hurdle<span>25% *</span>
+            </li>
+          </ul>
+        </div>
+
+        <p class="small text-muted mt-3">
+          * All parameters are subject to change based on prevailing market conditions, regulatory updates,
+          and the fund’s strategic objectives. Any such changes will be communicated to investors in advance.
+          
+        </p>
+      
+    </div>
+
+    <div class="chart-container">
+      
+        <div class="chart-area" style="height:400px;">
+          <canvas id="compensationChart"></canvas>
+        </div>
+      
+    </div>
+  </div>
+</section>
+
+
+<!-- Chart.js & Moment.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+
+<script>
+let fundChart;
+let csvRows = [];
+let seriesNames = [];
+
+// Detect delimiter
+function detectDelimiter(headerLine) {
+  const cands = [',',';','\t','|'];
+  let best = ',', bestCount = 0;
+  for (const d of cands) {
+    const c = headerLine.split(d).length - 1;
+    if (c > bestCount) { best = d; bestCount = c; }
+  }
+  return best;
+}
+
+// Parse number with localization and % handling
+function parseNumber(s) {
+  if (s == null) return NaN;
+  s = String(s).trim().replace(/^\uFEFF/, '').replace(/\u00A0/g, '');
+  let hadPercent = /%/.test(s);
+  s = s.replace(/%/g, '');
+  const hasComma = s.includes(','), hasDot = s.includes('.');
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',', '.');
+    else s = s.replace(/,/g,'');
+  } else if (hasComma) {
+    s = s.replace(',', '.');
+  }
+  let v = parseFloat(s);
+  if (!isFinite(v)) return NaN;
+  if (hadPercent) v = v / 100;
+  return v;
+}
+
+// Parse CSV with fixed column indexes
+function parseCSVMulti(csvText) {
+  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length < 2) throw new Error('CSV appears empty');
+
+  const headerRaw = lines[0].replace(/^\uFEFF/, '');
+  const delim = detectDelimiter(headerRaw);
+
+  const dateCol = 0; // First column is date
+  const colIndexes = [
+    { name: 'Accumulated Return', idx: 1 },
+    { name: 'Bourse Index', idx: 2 },
+    { name: 'Gold Index', idx: 3 },
+    { name: 'Dollar Index', idx: 4 }
+
+    
+  ];
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(delim);
+    const dRaw = parts[dateCol]?.trim();
+    if (!dRaw) continue;
+
+    const dt = new Date(dRaw);
+    const iso = isNaN(dt.getTime()) ? dRaw : dt.toISOString().split('T')[0];
+
+    const rec = { date: iso, series: {} };
+    colIndexes.forEach(col => {
+      const v = parseNumber(parts[col.idx]);
+      rec.series[col.name] = isFinite(v) ? v : null;
+    });
+    rows.push(rec);
+  }
+
+  rows.sort((a,b) => (a.date < b.date ? -1 : 1));
+  return { rows, names: colIndexes.map(c => c.name) };
+}
+
+function firstValid(arr) {
+  for (const x of arr) {
+    if (x != null && isFinite(x)) return x;
+  }
+  return null;
+}
+
+async function loadCSVDataForChart() {
+  try {
+    const investorEmail = "{{ investor_email }}";
+    const safeFileName = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
+    const filePath = `/static/${safeFileName}`;
+
+    const resp = await fetch(filePath, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const text = await resp.text();
+    const parsed = parseCSVMulti(text);
+    csvRows = parsed.rows;
+    seriesNames = parsed.names;
+
+    if (!csvRows.length || !seriesNames.length) {
+      throw new Error('No usable chart data/series found');
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    document.getElementById('startDate').value = csvRows[0].date;
+    document.getElementById('endDate').value = todayStr;
+
+    updateChart();
+  } catch (err) {
+    console.error('Error loading/parsing chart CSV:', err);
+    alert('Could not read chart CSV file.');
+  }
+}
+
+function filterByDate(startDate, endDate) {
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s) || isNaN(e)) return [];
+  return csvRows.filter(r => {
+    const t = new Date(r.date);
+    return !isNaN(t) && t >= s && t <= e;
+  });
+}
+
+function rebaseSeries(values) {
+  const base = firstValid(values);
+  if (base == null || !isFinite(base) || base <= -1) return values.map(_ => null);
+  return values.map(v => (v == null || !isFinite(v)) ? null : (((1 + v) / (1 + base)) - 1) * 100);
+}
+
+function updateChart() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate   = document.getElementById('endDate').value;
+  if (!startDate || !endDate || !csvRows.length) return;
+
+  const rows = filterByDate(startDate, endDate);
+  if (!rows.length) return;
+
+  const labels = rows.map(r => r.date);
+  const datasets = [];
+  const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
+
+  seriesNames.forEach((name, i) => {
+    const raw = rows.map(r => r.series[name]);
+    const rebasedPct = rebaseSeries(raw);
+    datasets.push({
+      label: name,
+      data: rebasedPct,
+      borderWidth: 0.5,
+      tension: 0.1,
+      borderColor: palette[i % palette.length],
+      backgroundColor: 'rgba(0,0,0,0)',
+      spanGaps: true,
+      pointRadius: 0.5,
+      pointHoverRadius: 0.5
+    });
+  });
+
+  const ctx = document.getElementById('fundChart').getContext('2d');
+  if (fundChart) fundChart.destroy();
+  fundChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Date' } },
+        y: {
+          title: { display: true, text: 'Return since start (%)' },
+          ticks: { callback: v => v.toFixed(1) + '%' }
+        }
+      },
+      plugins: {
+        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
+        legend: { display: true, position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
+          }
+        }
+      }
+    }
+  });
+}
+
+async function loadCSVDataForMetrics() {
+  try {
+    const investorEmail = "{{ investor_email }}";
+    const safeFileName = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
+    const filePath = `/static/${safeFileName}`;
+    console.log("🔍 Fetching metrics CSV from:", filePath);
+
+    const resp = await fetch(filePath, { cache: 'no-store' });
+    console.log("✅ Response status:", resp.status);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const text = await resp.text();
+    console.log("📄 CSV Raw Text:\n", text);
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    console.log("📊 Line count (incl header):", lines.length);
+
+    if (lines.length < 2) {
+      console.warn("⚠️ CSV file empty or invalid.");
+      return;
+    }
+
+    const delim = detectDelimiter(lines[0]);
+    console.log("🛠 Detected delimiter:", JSON.stringify(delim));
+
+    const rows = lines.slice(1).map(l => l.split(delim));
+    console.log("📋 Parsed data rows count:", rows.length);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    console.log("📅 Today ISO:", todayStr);
+
+    const safeGet = (row, idx) => (row && row.length > idx) ? parseNumber(row[idx]) : NaN;
+
+    // 1️⃣ Find today's index
+    let todayIndex = rows.findIndex(r => {
+      const d = new Date(r[0]);
+      return !isNaN(d) && d.toISOString().split('T')[0] === todayStr;
+    });
+    console.log("📍 Initial todayIndex:", todayIndex);
+
+    if (todayIndex === -1) {
+      console.log("⚠️ Today not found, searching for last past date");
+      todayIndex = rows.findIndex(r => {
+        const d = new Date(r[0]);
+        return !isNaN(d) && d <= new Date();
+      });
+      if (todayIndex === -1) todayIndex = rows.length - 1;
+    }
+    console.log("📍 Final todayIndex:", todayIndex, "Date:", rows[todayIndex]?.[0]);
+
+    // 2️⃣ Backward search for YTD, Annualized, NAV
+    const findValidBackwards = (startIndex, colIdx, label) => {
+      for (let i = startIndex; i >= 0; i--) {
+        const val = safeGet(rows[i], colIdx);
+        console.log(`🔎 Check ${label} @ row ${i}, date ${rows[i][0]} →`, val);
+        if (isFinite(val) && val !== 0) {
+          console.log(`✅ Found valid ${label} @ row ${i}`, val);
+          return { val, idx: i };
+        }
+      }
+      console.log(`❌ No valid ${label} found backwards from index ${startIndex}`);
+      return { val: NaN, idx: null };
+    };
+
+    const ytdInfo = findValidBackwards(todayIndex, 5, "YTD");
+    const annInfo = findValidBackwards(todayIndex, 6, "Annualized");
+    const navInfo = findValidBackwards(todayIndex, 7, "NAV");
+
+    // 3️⃣ Locked Base is always from the latest date in the file
+    const latestRowIndex = rows.length - 1;
+    const latestRow = rows[latestRowIndex];
+    const lockedBase = safeGet(latestRow, 1);
+    const lockedDate = new Date(latestRow[0]);
+
+    console.log("📌 Locked Base:", lockedBase, "Locked Date:", lockedDate.toISOString().split('T')[0]);
+
+    const daysDiff = Math.abs((lockedDate - new Date()) / 86400000);
+    console.log("📆 Days diff (Locked Date - Today):", daysDiff);
+
+    let lockedIn = null;
+    if (isFinite(lockedBase) && isFinite(ytdInfo.val) && daysDiff > 0) {
+      lockedIn = Math.pow((1 + lockedBase) / (1 + ytdInfo.val), 365 / daysDiff) - 1;
+    }
+    console.log("🔒 LockedIn computed:", lockedIn);
+
+    // 4️⃣ Update DOM
+    const metricEls = document.querySelectorAll('.metric-item .metric-value');
+    console.log("🖊 Found metric elements:", metricEls.length);
+
+    if (isFinite(ytdInfo.val)) metricEls[0].textContent = (ytdInfo.val * 100).toFixed(2) + '%';
+    if (isFinite(navInfo.val)) metricEls[1].textContent = navInfo.val.toLocaleString();
+    if (isFinite(annInfo.val)) metricEls[2].textContent = (annInfo.val * 100).toFixed(2) + '%';
+    if (isFinite(lockedIn))    metricEls[3].textContent = (lockedIn * 100).toFixed(2) + '%';
+
+  } catch (err) {
+    console.error('❌ Performance metric error:', err);
+  }
+}
+
+['startDate','endDate'].forEach(id =>
+  document.getElementById(id).addEventListener('change', updateChart)
+);
+document.getElementById('updateChart').addEventListener('click', updateChart);
+window.addEventListener('load', async () => {
+  // Load chart independently
+  await loadCSVDataForChart();
+  // Load metrics independently
+  await loadCSVDataForMetrics();
+});
+
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const compCanvas = document.getElementById('compensationChart');
+  
+  try {
+    const resp = await fetch('{{ url_for("static", filename="compensation.csv") }}', { cache: 'no-store' });
+    const text = await resp.text();
+    const rows = text.trim().split(/\r?\n/).map(r => r.split(','));
+
+    const labels         = rows.slice(1).map(r => r[0]);          // First col = total return label
+    const investorReturn = rows.slice(1).map(r => parseFloat(r[1])); // Col 2 = investor return
+    const fundFee        = rows.slice(1).map(r => parseFloat(r[2])); // Col 3 = management fee
+
+    new Chart(compCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { 
+            label: 'Investor Return', 
+            data: investorReturn, 
+            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            stack: 'combined'
+          },
+          { 
+            label: 'Fund Fee', 
+            data: fundFee, 
+            backgroundColor: 'rgba(255, 159, 64, 0.7)',
+            stack: 'combined'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { 
+            stacked: true,
+            title: { display: true, text: 'Total Return' }
+          },
+          y: { 
+            stacked: true,
+            beginAtZero: true,
+            ticks: { callback: v => v + '%' }
+          }
+        },
+        plugins: {
+          legend: { position: 'top' },
+          title: { display: true, text: 'Compensation vs Investor Return (Stacked)' },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return `${context.dataset.label}: ${context.parsed.y}%`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+  } catch (e) {
+    console.error('Failed to load compensation.csv', e);
+  }
+});
+</script>
+
+{% endblock %}
