@@ -16,13 +16,14 @@ google = oauth.register(
     client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
     api_base_url='https://www.googleapis.com/oauth2/v2/',
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'}
+    client_kwargs={'scope': 'openid email profile'}    
 )
 
 # --- Context processor: make 'user' available in all templates ---
 @app.context_processor
 def inject_user():
-    return dict(user=session.get("user"))
+    return dict(user=session.get("user"))    
+
 
 # --- Routes ---
 @app.route("/")
