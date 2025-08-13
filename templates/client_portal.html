@@ -72,9 +72,27 @@
             <label for="endDate" class="form-label">End Date:</label>
             <input type="date" id="endDate" class="form-control" />
           </div>
+          
           <div class="col-md-4 d-flex align-items-end">
-            <button id="updateChart" class="btn btn-primary">Update Chart</button>
+          <button id="updateChart" class="btn btn-primary">Update Chart</button>
+
+          <!-- Series dropdown, sits right beside Update -->
+          <div class="btn-group ms-2">
+          <button id="seriesToggle"
+                class="btn btn-outline-secondary dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+            Series
+          </button>
+            <div id="seriesMenu" class="dropdown-menu p-3" style="min-width: 260px; max-height: 300px; overflow:auto;">
+              <div class="d-flex justify-content-between mb-2">
+                <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
+                <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+              </div>
+              <div id="seriesControls"></div>
+            </div>
           </div>
+        </div>
         </div>
       </div>
       <div class="chart-area">
@@ -139,7 +157,8 @@
 let fundChart;
 let csvRows = [];
 let seriesNames = [];
-
+const EXTRA_SERIES_KEY = "Fund (After Fee)";
+let selectedSeries = new Set();  // which series user wants visible
 // Detect delimiter
 function detectDelimiter(headerLine) {
   const cands = [',',';','\t','|'];
@@ -229,10 +248,21 @@ async function loadCSVDataForChart() {
     const parsed = parseCSVMulti(text);
     csvRows = parsed.rows;
     seriesNames = parsed.names;
+     
+      // 🛠 Debug logs
+    console.log("CSV loaded from:", filePath);
+    console.log("Number of rows loaded:", csvRows.length);
+    console.log("Series names parsed:", seriesNames);
+ 
+  
+       // build the dropdown now that we have seriesNames
+    renderSeriesControls();
 
     if (!csvRows.length || !seriesNames.length) {
       throw new Error('No usable chart data/series found');
     }
+
+    
 
     const todayStr = new Date().toISOString().split('T')[0];
     document.getElementById('startDate').value = csvRows[0].date;
@@ -273,22 +303,76 @@ function updateChart() {
   const datasets = [];
   const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
 
+  // helper: is this series currently selected?
+  const want = (name) => selectedSeries.has(name);
+
+  // robust fund detection (kept from your version)
+  const FUND_ALIASES = ['fund','vega core fund','vega fund','core fund','vega'];
+  const isFund = (name, idx) => {
+    const n = String(name || '').toLowerCase().trim();
+    return FUND_ALIASES.some(a => n === a || n.includes(a)) || idx === 0;
+  };
+
+  // fee params
+  const start = new Date(startDate);
+  const mYear = 0.02; // management 2% p.a.
+  const hYear = 0.40; // hurdle 40% p.a.
+  let fundAfterFee = null;
+
   seriesNames.forEach((name, i) => {
     const raw = rows.map(r => r.series[name]);
     const rebasedPct = rebaseSeries(raw);
+
+    // compute after-fee off the fund (even if hidden, so it can be toggled on without recomputation)
+    if (isFund(name, i)) {
+      fundAfterFee = rebasedPct.map((ret, idx) => {
+        const currentDate = new Date(rows[idx].date);
+        const T = (currentDate - start) / 86400000; // days since start
+        const m_T = Math.pow(1 + mYear, T / 365) - 1;
+        const h_T = Math.pow(1 + hYear, T / 365) - 1;
+
+        let investorRet;
+        if (ret > h_T) {
+          investorRet = Math.max(h_T, 0.75 * ret);
+        } else {
+          investorRet = ret;
+        }
+        return investorRet - m_T;
+      });
+    }
+
+    // only plot if this series is selected
+    if (want(name)) {
+      datasets.push({
+        label: name,
+        data: rebasedPct,
+        borderWidth: 0.5,
+        tension: 0.1,
+        borderColor: palette[datasets.length % palette.length],
+        backgroundColor: 'rgba(0,0,0,0)',
+        spanGaps: true,
+        pointRadius: 0.5,
+        pointHoverRadius: 0.5
+      });
+    }
+  });
+
+  // add extra line only if selected
+  if (Array.isArray(fundAfterFee) && want(EXTRA_SERIES_KEY)) {
     datasets.push({
-      label: name,
-      data: rebasedPct,
+      label: EXTRA_SERIES_KEY,
+      data: fundAfterFee,
       borderWidth: 0.5,
       tension: 0.1,
-      borderColor: palette[i % palette.length],
+      borderColor: palette[datasets.length % palette.length],
       backgroundColor: 'rgba(0,0,0,0)',
       spanGaps: true,
       pointRadius: 0.5,
       pointHoverRadius: 0.5
     });
-  });
+  }
 
+  // if user deselects everything, keep chart alive but empty data
   const ctx = document.getElementById('fundChart').getContext('2d');
   if (fundChart) fundChart.destroy();
   fundChart = new Chart(ctx, {
@@ -415,7 +499,65 @@ async function loadCSVDataForMetrics() {
     console.error('❌ Performance metric error:', err);
   }
 }
+function renderSeriesControls() {
+  const container = document.getElementById('seriesControls');
 
+  // Hard fail if the node isn't in DOM
+  if (!container) {
+    console.error("renderSeriesControls: #seriesControls not found");
+    return;
+  }
+
+  const allSeries = [...seriesNames, EXTRA_SERIES_KEY];
+  console.log("renderSeriesControls: allSeries =", allSeries);
+
+  // If nothing to show, render a placeholder so the menu isn't visually empty
+  if (!allSeries.length) {
+    container.innerHTML = '<div class="text-muted small">No series loaded</div>';
+    return;
+  }
+
+  // initialize once
+  if (selectedSeries.size === 0) {
+    allSeries.forEach(s => selectedSeries.add(s));
+  }
+
+  container.innerHTML = '';
+  allSeries.forEach((name, idx) => {
+    try {
+      const id = `series-${idx}`;
+      const row = document.createElement('div');
+      row.className = 'form-check mb-1';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'form-check-input';
+      cb.id = id;
+      cb.checked = selectedSeries.has(name);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedSeries.add(name);
+        else selectedSeries.delete(name);
+        updateChart();
+      });
+
+      const label = document.createElement('label');
+      label.className = 'form-check-label';
+      label.setAttribute('for', id);
+      label.textContent = name;
+
+      row.appendChild(cb);
+      row.appendChild(label);
+      container.appendChild(row);
+    } catch (e) {
+      console.error("renderSeriesControls: error for", name, e);
+    }
+  });
+
+  const btnAll  = document.getElementById('seriesSelectAll');
+  const btnNone = document.getElementById('seriesSelectNone');
+  if (btnAll) btnAll.onclick = () => { selectedSeries = new Set(allSeries); renderSeriesControls(); updateChart(); };
+  if (btnNone) btnNone.onclick = () => { selectedSeries.clear(); renderSeriesControls(); updateChart(); };
+}
 ['startDate','endDate'].forEach(id =>
   document.getElementById(id).addEventListener('change', updateChart)
 );
@@ -425,6 +567,17 @@ window.addEventListener('load', async () => {
   await loadCSVDataForChart();
   // Load metrics independently
   await loadCSVDataForMetrics();
+});
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('seriesToggle');
+  if (toggle) {
+    toggle.addEventListener('shown.bs.dropdown', () => {
+      console.log("Dropdown opened — re-rendering series controls");
+      renderSeriesControls();
+    });
+  }
 });
 
 </script>
@@ -442,7 +595,7 @@ window.addEventListener('load', async () => {
 
 
 <!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   const compCanvas = document.getElementById('compensationChart');

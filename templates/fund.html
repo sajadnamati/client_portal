@@ -66,6 +66,23 @@
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <button id="updateChart" class="btn btn-primary">Update Chart</button>
+
+            <!-- Series dropdown, same pattern as code 1 -->
+            <div class="btn-group ms-2">
+              <button id="seriesToggle"
+                      class="btn btn-outline-secondary dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false">
+                Series
+              </button>
+              <div id="seriesMenu" class="dropdown-menu p-3" style="min-width:260px; max-height:300px; overflow:auto;">
+                <div class="d-flex justify-content-between mb-2">
+                  <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
+                  <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+                </div>
+                <div id="seriesControls"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -131,7 +148,8 @@
 let fundChart;
 let csvRows = [];
 let seriesNames = [];
-
+const EXTRA_SERIES_KEY = "Fund (After Fee)";
+let selectedSeries = new Set();
 // detect delimiter
 function detectDelimiter(headerLine) {
   const cands = [',',';','\t','|'];
@@ -206,14 +224,22 @@ async function loadCSVData() {
     const parsed = parseCSVMulti(text);
     csvRows = parsed.rows;
     seriesNames = parsed.names;
+
+   
+
     if (!csvRows.length || !seriesNames.length) throw new Error('No usable data/series found');
+
+ // Build dropdown once we have names
+    renderSeriesControls();
+
     document.getElementById('startDate').value = csvRows[0].date;
     document.getElementById('endDate').value   = csvRows[csvRows.length - 1].date;
     updateChart();
   } catch (err) {
-    console.error('Error loading/parsing CSV:', err);
-    alert('Could not read /static/fund_data.csv.');
-  }
+  console.error('Error loading/parsing CSV:', err);
+  alert('Could not read /static/fund_data.csv.');
+  document.getElementById('seriesControls').innerHTML = '<div class="text-danger">Error loading data</div>';
+}
 }
 
 function filterByDate(startDate, endDate) {
@@ -236,26 +262,77 @@ function updateChart() {
   const startDate = document.getElementById('startDate').value;
   const endDate   = document.getElementById('endDate').value;
   if (!startDate || !endDate || !csvRows.length) return;
+
   const rows = filterByDate(startDate, endDate);
   if (!rows.length) return;
+
   const labels = rows.map(r => r.date);
   const datasets = [];
   const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
+  // helper: is this series currently selected?
+  const want = (name) => selectedSeries.has(name);
+  const start = new Date(startDate);
+
+  let fundAfterFee = [];
+
   seriesNames.forEach((name, i) => {
     const raw = rows.map(r => r.series[name]);
-    const rebasedPct = rebaseSeries(raw);
+    const rebasedPct = rebaseSeries(raw); // gross % returns since start date
+
+    if (want(name)) {
+      datasets.push({
+        label: name,
+        data: rebasedPct,
+        borderWidth: 0.5,
+        tension: 0.1,
+        borderColor: palette[datasets.length % palette.length],
+        backgroundColor: 'rgba(0,0,0,0)',
+        spanGaps: true,
+        pointRadius: 0.5,
+        pointHoverRadius: 0.5
+      });
+  }
+
+    // If this is the Fund series, calculate after-fee returns
+    if (name.toLowerCase().includes("fund")) {
+      const mYear = 0.02;
+      const hurdleYear = 0.40;
+
+      fundAfterFee = rebasedPct.map((ret, idx) => {
+        const currentDate = new Date(rows[idx].date);
+        const T = (currentDate - start) / (1000 * 60 * 60 * 24); // days since start
+        const m_T = Math.pow(1 + mYear, T / 365) - 1;
+        const h_T = Math.pow(1 + hurdleYear, T / 365) - 1;
+
+        let investorRet;
+        if (ret > h_T) {
+          investorRet = Math.max(h_T, 0.75 * ret);
+        } else {
+          investorRet = ret;
+        }
+
+        const afterFeeRet = investorRet - m_T;
+        return afterFeeRet;
+      });
+    }
+  });
+
+  // Add Fund (After Fee) as extra series
+  if (fundAfterFee.length && want(EXTRA_SERIES_KEY)) {
     datasets.push({
-      label: name,
-      data: rebasedPct,
-      borderWidth: 0.5,
+      label: EXTRA_SERIES_KEY,
+      data: fundAfterFee,
+      borderWidth: 1,
       tension: 0.1,
-      borderColor: palette[i % palette.length],
+      borderColor: palette[datasets.length % palette.length],
       backgroundColor: 'rgba(0,0,0,0)',
       spanGaps: true,
       pointRadius: 0.5,
-      pointHoverRadius: 0.5
+      pointHoverRadius: 0.5,
+      borderDash: [4, 4]
     });
-  });
+  }
+
   const ctx = document.getElementById('fundChart').getContext('2d');
   if (fundChart) fundChart.destroy();
   fundChart = new Chart(ctx, {
@@ -284,14 +361,109 @@ function updateChart() {
   });
 }
 
+
+
+function renderSeriesControls() {
+  const container = document.getElementById('seriesControls');
+  if (!container) {
+    console.error("renderSeriesControls: #seriesControls not found");
+    return;
+  }
+
+  const allSeries = [...seriesNames, EXTRA_SERIES_KEY];
+
+  // Initialize (first time: select everything)
+  if (selectedSeries.size === 0) {
+    allSeries.forEach(s => selectedSeries.add(s));
+  }
+
+  container.innerHTML = '';
+  allSeries.forEach((name, idx) => {
+    const id = `series-${idx}`;
+    const row = document.createElement('div');
+    row.className = 'form-check mb-1';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'form-check-input';
+    cb.id = id;
+    cb.checked = selectedSeries.has(name);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedSeries.add(name);
+      else selectedSeries.delete(name);
+      updateChart();
+    });
+
+    const label = document.createElement('label');
+    label.className = 'form-check-label';
+    label.setAttribute('for', id);
+    label.textContent = name;
+
+    row.appendChild(cb);
+    row.appendChild(label);
+    container.appendChild(row);
+  });
+
+  const btnAll  = document.getElementById('seriesSelectAll');
+  const btnNone = document.getElementById('seriesSelectNone');
+  if (btnAll) {
+    btnAll.onclick = (e) => {
+      e.preventDefault();
+      selectedSeries = new Set(allSeries);
+      renderSeriesControls();
+      updateChart();
+    };
+  }
+  if (btnNone) {
+    btnNone.onclick = (e) => {
+      e.preventDefault();
+      selectedSeries.clear();
+      renderSeriesControls();
+      updateChart();
+    };
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ['startDate','endDate'].forEach(id =>
   document.getElementById(id).addEventListener('change', updateChart)
 );
 document.getElementById('updateChart').addEventListener('click', updateChart);
 window.addEventListener('load', loadCSVData);
+
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('seriesToggle');
+  if (toggle) {
+    toggle.addEventListener('shown.bs.dropdown', () => {
+      renderSeriesControls(); // keep the list in sync
+    });
+  }
+});
+
+
+
+
+
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const compTextCollapse   = document.getElementById('secondRowCollapse');
