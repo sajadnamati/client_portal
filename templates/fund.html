@@ -65,7 +65,7 @@
             <input type="date" id="endDate" class="form-control" />
           </div>
           <div class="col-md-4 d-flex align-items-end">
-            <button id="updateChart" class="btn btn-primary">Update Chart</button>
+            <button id="updateChart" class="btn btn-primary">Update</button>
 
             <!-- Series dropdown, same pattern as code 1 -->
             <div class="btn-group ms-2">
@@ -73,7 +73,7 @@
                       class="btn btn-outline-secondary dropdown-toggle"
                       data-bs-toggle="dropdown"
                       aria-expanded="false">
-                Series
+                Indices
               </button>
               <div id="seriesMenu" class="dropdown-menu p-3" style="min-width:260px; max-height:300px; overflow:auto;">
                 <div class="d-flex justify-content-between mb-2">
@@ -296,22 +296,22 @@ function updateChart() {
     // If this is the Fund series, calculate after-fee returns
     if (name.toLowerCase().includes("fund")) {
       const mYear = 0.02;
-      const hurdleYear = 0.40;
+      const hurdleYear = 0.90;
 
       fundAfterFee = rebasedPct.map((ret, idx) => {
         const currentDate = new Date(rows[idx].date);
         const T = (currentDate - start) / (1000 * 60 * 60 * 24); // days since start
         const m_T = Math.pow(1 + mYear, T / 365) - 1;
         const h_T = Math.pow(1 + hurdleYear, T / 365) - 1;
-
+        console.log("Index:", idx, "T:", T, "Type:", typeof T);
         let investorRet;
-        if (ret > h_T) {
+        if (ret/100 > h_T) {
           investorRet = Math.max(h_T, 0.75 * ret);
         } else {
           investorRet = ret;
         }
 
-        const afterFeeRet = investorRet - m_T;
+        const afterFeeRet = investorRet - m_T*100;
         return afterFeeRet;
       });
     }

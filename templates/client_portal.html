@@ -74,7 +74,7 @@
           </div>
           
           <div class="col-md-4 d-flex align-items-end">
-          <button id="updateChart" class="btn btn-primary">Update Chart</button>
+          <button id="updateChart" class="btn btn-primary">Update</button>
 
           <!-- Series dropdown, sits right beside Update -->
           <div class="btn-group ms-2">
@@ -82,7 +82,7 @@
                 class="btn btn-outline-secondary dropdown-toggle"
                 data-bs-toggle="dropdown"
                 aria-expanded="false">
-            Series
+            Indices
           </button>
             <div id="seriesMenu" class="dropdown-menu p-3" style="min-width: 260px; max-height: 300px; overflow:auto;">
               <div class="d-flex justify-content-between mb-2">
@@ -146,6 +146,34 @@
       
     </div>
   </div>
+  <!--Thirs row: Compensation Structure -->
+  <div class="fund-wrapper">
+    <div class="fund-info">
+      <h4 class="fw-bold mb-3">Performance Reporting</h4>
+      
+        <p class="text-muted text-justify mt-3">
+          Investor returns are reported on a money-weighted IRR basis, calculated from each investor’s
+           contribution cash flows and terminal portfolio value. Fund-level performance is presented
+            using time-weighted returns for comparability with benchmarks.Performance fees are assessed
+             <strong>per contribution</strong> under a hard hurdle with whole-return sharing. For each subscription,
+              fees apply only if the realized return exceeds the hurdle rate. When this occurs, the
+               investor retains the greater of the hurdle rate or 75% of the total return, with the
+                fund receiving the balance. If performance falls below the hurdle, no performance
+                 fee is charged. This contribution-based structure ensures that new investments are never
+                  charged on performance earned before their entry, while the hard hurdle provides
+                   investors with downside protection and aligns compensation with realized results.
+                   <br><br>
+                   On the right, contributions are shown as negative cash flows at their dates; the terminal portfolio value
+                   (latest NAV in the selected window) is shown as a positive cash flow. 
+        </p>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-area" style="height:320px;">
+        <canvas id="cashFlowChart"></canvas>
+      </div>
+    </div>
+  </div>
 </section>
 
 
@@ -155,10 +183,32 @@
 
 <script>
 let fundChart;
+let cashFlowChart;
 let csvRows = [];
 let seriesNames = [];
 const EXTRA_SERIES_KEY = "Fund (After Fee)";
 let selectedSeries = new Set();  // which series user wants visible
+
+
+
+//          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Detect delimiter
 function detectDelimiter(headerLine) {
   const cands = [',',';','\t','|'];
@@ -316,7 +366,7 @@ function updateChart() {
   // fee params
   const start = new Date(startDate);
   const mYear = 0.02; // management 2% p.a.
-  const hYear = 0.40; // hurdle 40% p.a.
+  const hYear = 0.5; // hurdle 40% p.a.
   let fundAfterFee = null;
 
   seriesNames.forEach((name, i) => {
@@ -332,12 +382,14 @@ function updateChart() {
         const h_T = Math.pow(1 + hYear, T / 365) - 1;
 
         let investorRet;
-        if (ret > h_T) {
+        console.log("Index:", idx, "Raw ret value:", ret, "Type:", typeof ret);
+        console.log("Index:", idx, "HT value:", h_T, "Type:", typeof ret);
+        if (ret/100 > h_T) {
           investorRet = Math.max(h_T, 0.75 * ret);
         } else {
           investorRet = ret;
         }
-        return investorRet - m_T;
+        return investorRet - m_T*100;
       });
     }
 
@@ -400,6 +452,375 @@ function updateChart() {
     }
   });
 }
+
+function computeXIRR(cashflows, guess = 0.1) {
+  // cashflows: array of {date: Date, value: number}
+  const maxIter = 100, tol = 1e-7;
+  let rate = guess;
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    let f = 0, df = 0;
+    const t0 = cashflows[0].date;
+
+    for (const {date, value} of cashflows) {
+      const days = (date - t0) / (1000 * 60 * 60 * 24);
+      const frac = days / 365.0;
+      const denom = Math.pow(1 + rate, frac);
+      f += value / denom;
+      df += -(frac * value) / (denom * (1 + rate));
+    }
+
+    const newRate = rate - f / df;
+    if (Math.abs(newRate - rate) < tol) return newRate;
+    rate = newRate;
+  }
+  return rate;
+}
+
+
+async function loadCashFlowChart() {
+  try {
+    const investorEmail = "{{ investor_email }}";
+    const safeFileName  = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
+    const filePath      = `/static/${safeFileName}`;
+
+    const resp = await fetch(filePath, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+
+    // Parse CSV
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length < 2) throw new Error('CSV appears empty');
+    const delim = detectDelimiter(lines[0]);
+    const rows  = lines.slice(1).map(l => l.split(delim));
+
+    console.log(`CF CSV loaded: ${rows.length} rows`);
+
+    // Hardcoded indices: 0=date, 7=asset, 8=contribution
+    const cfRows = rows.map((r, idx) => {
+      const d  = new Date(r[0]);
+      const ds = isNaN(d.getTime()) ? r[0] : d.toISOString().split('T')[0];
+
+      const asset       = parseNumber(r[7]);
+      const contribRaw  = parseNumber(r[8]);
+
+      return {
+        date: ds,
+        asset: isFinite(asset) ? asset : NaN,
+        contrib: isFinite(contribRaw) ? -Math.abs(contribRaw) : 0
+      };
+    });
+
+    // Ensure date inputs are set before drawing
+    const startEl = document.getElementById('startDate');
+    const endEl   = document.getElementById('endDate');
+    if (startEl && !startEl.value && cfRows.length) startEl.value = cfRows[0].date;
+    if (endEl   && !endEl.value   && cfRows.length) endEl.value   = cfRows[cfRows.length - 1].date;
+
+    console.log(`CF date window init: ${startEl?.value} → ${endEl?.value}`);
+
+    // === Chart render ===
+    function renderCFChart(cfRows) {
+      let xirr = NaN;   // <-- define here, top of function
+      const s = new Date(startEl?.value);
+      const e = new Date(endEl?.value);
+      if (!(s instanceof Date) || !(e instanceof Date)) return;
+      
+
+      const win = cfRows.filter(r => {
+        const t = new Date(r.date);
+        return !isNaN(t) && t >= s && t <= e;
+      });
+      if (win.length === 0) return;
+
+      const labels = [];
+      const contribs = [];
+      const mgmtFees = [];
+      const perfFees = [];
+      const residuals = [];
+
+      // Parameters
+      const mYear = 0.02;  // 2% management fee annual
+      const hYear = 0.5;  // hurdle example: 5% annual
+
+      // Contributions shown as negative bars
+      win.forEach(r => {
+        if (isFinite(r.contrib) && Math.abs(r.contrib) > 0) {
+          labels.push(r.date);
+          contribs.push(r.contrib);
+          mgmtFees.push(0);
+          perfFees.push(0);
+          residuals.push(0);
+        }
+      });
+
+      // === Use endDate as "current date" ===
+      const currentDate = new Date(); // always use today
+      // Find asset value at or before currentDate
+      const todayRow = [...cfRows].reverse().find(r => {
+        const d = new Date(r.date);
+        return !isNaN(d) && d <= currentDate && isFinite(r.asset) && r.asset > 0;
+      });
+
+      if (todayRow) {
+        let totalMgmt = 0, totalPerf = 0;
+
+        // For each contribution, compute fees up to current date
+        cfRows.forEach((r, idx) => {
+          if (r.contrib < 0) {
+            const contribDate = new Date(r.date);
+            if (contribDate <= currentDate) {
+              const T = (currentDate - contribDate) / (1000 * 60 * 60 * 24); // days
+              const m_T = Math.pow(1 + mYear, T / 365) - 1;
+              const h_T = Math.pow(1 + hYear, T / 365) - 1;
+
+              // Find return at current (end date or nearest before)
+              const currentRow = [...rows].reverse().find(rr => {
+                const d = new Date(rr[0]);
+                return !isNaN(d) && d <= currentDate;
+              });
+              const retAtCurrent = currentRow ? parseNumber(currentRow[1]) : NaN;
+
+              // Return at contribution
+              
+              const retAtContrib = parseNumber(rows[idx][1]);
+              if (!isFinite(retAtCurrent) || !isFinite(retAtContrib)) return;
+
+              const Ret = (1 + retAtCurrent) / (1 + retAtContrib) - 1;
+
+              let investorRet;
+              if (Ret > h_T) {
+                investorRet = Math.max(h_T, 0.75 * Ret);
+              } else {
+                investorRet = Ret;
+              }
+
+              const base = Math.abs(r.contrib);
+              const mgmtFee = base * m_T;
+              const perfFee = base * (Ret-investorRet);
+              console.log(
+                `✅ Contribution @ ${r.date} | T=${T.toFixed(1)} days | base=${base.toFixed(2)}| retAtContrib=${retAtContrib.toFixed(4)} |
+                 retAtCurrent=${retAtCurrent.toFixed(4)} | investorRet=${investorRet.toFixed(4)}| Ret=${Ret.toFixed(4)} | h_T=${h_T.toFixed(4)} | m_T=${m_T.toFixed(4)} |MgmtFee=${mgmtFee.toFixed(2)} 
+                   | PerfFee=${perfFee.toFixed(2)}`
+              );
+
+
+              totalMgmt += mgmtFee;
+              totalPerf += perfFee;
+            }
+          }
+        });
+
+        const residual = todayRow.asset - totalMgmt - totalPerf;
+        // === XIRR calculation ===
+          // === XIRR calculation ===
+        const cfSeries = [];
+
+        // Contributions (negative)
+        cfRows.forEach(r => {
+          if (isFinite(r.contrib) && r.contrib !== 0) {
+            cfSeries.push({ date: new Date(r.date), value: r.contrib });
+          }
+        });
+
+        // Terminal value (positive)
+        cfSeries.push({ date: currentDate, value: residual });
+        // 🔍 Debug logs
+        console.log("CF Series for XIRR:");
+        cfSeries.forEach(cf => {
+          console.log(`   ${cf.date.toISOString().split('T')[0]} | ${cf.value}`);
+        });
+        // Compute XIRR
+        
+        try {
+          xirr = computeXIRR(cfSeries) * 100; // percent
+          console.log(`📈 XIRR = ${xirr.toFixed(2)}%`);
+        } catch (err) {
+          console.error("XIRR failed:", err);
+        }
+
+
+
+
+
+        // === Terminal stacked bar ===
+        labels.push("Terminal");
+        contribs.push(0);
+        mgmtFees.push(totalMgmt);
+        perfFees.push(totalPerf);
+        residuals.push(residual);
+      }
+
+      const ctx = document.getElementById('cashFlowChart').getContext('2d');
+      if (cashFlowChart) cashFlowChart.destroy();
+      console.log("🎯 Final XIRR before chart build:", xirr);
+      cashFlowChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+          {
+            label: 'Contributions',
+            data: contribs,
+            backgroundColor: 'rgba(220,53,69,0.7)',
+            stack: 'stack1',
+            order: 1
+          },
+          {
+            label: 'Investor Share',
+            data: residuals,
+            backgroundColor: 'rgba(25,135,84,0.7)',
+            stack: 'stack1',
+            order: 2
+          },
+          {
+            label: 'Perf Fee',
+            data: perfFees,
+            backgroundColor: 'rgba(13,110,253,0.7)',
+            stack: 'stack1',
+            order: 3
+          },
+          {
+            label: 'Mgmt Fee',
+            data: mgmtFees,
+            backgroundColor: 'rgba(255,193,7,0.7)',
+            stack: 'stack1',
+            order: 4
+          }
+        ]
+        },
+        
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: `Cash Flows, Fees & Terminal Value (XIRR: ${isFinite(xirr) ? xirr.toFixed(2)+'%' : 'n/a'})`  },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  return `${ctx.dataset.label}: ${Number(v).toLocaleString()}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { stacked: true },
+            y: { stacked: true }
+          }
+        }
+      });
+    }
+
+    // Initial render
+    renderCFChart(cfRows);
+
+    // Hook listeners
+    ['startDate','endDate'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.cfHooked) {
+        el.addEventListener('change', () => renderCFChart(cfRows));
+        el.dataset.cfHooked = '1';
+      }
+    });
+    const updBtn = document.getElementById('updateChart');
+    if (updBtn && !updBtn.dataset.cfHooked) {
+      updBtn.addEventListener('click', () => renderCFChart(cfRows));
+      updBtn.dataset.cfHooked = '1';
+    }
+  } catch (e) {
+    console.error('❌ Cash flow chart error:', e);
+  }
+}
+
+// Filter, build series, and draw bars
+function updateCFChart(cfRows) {
+  if (!Array.isArray(cfRows) || cfRows.length === 0) return;
+
+  const startDate = document.getElementById('startDate')?.value;
+  const endDate   = document.getElementById('endDate')?.value;
+  if (!startDate || !endDate) return;
+
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+
+  // Filter by date window
+  const win = cfRows.filter(r => {
+    const t = new Date(r.date);
+    return !isNaN(t) && t >= s && t <= e;
+  });
+  if (win.length === 0) return;
+
+  // Build labels & data: contributions (as negative), then a final "Terminal" bar with NAV
+  const labels = [];
+  const data   = [];
+
+  win.forEach(r => {
+    // Only show non-zero contributions
+    if (isFinite(r.contrib) && Math.abs(r.contrib) > 0) {
+      labels.push(r.date);
+      // Force negative sign for contributions
+      data.push(-Math.abs(r.contrib));
+    }
+  });
+
+  // Terminal value: last available NAV in window
+  const lastWithAsset = [...win].reverse().find(r => isFinite(r.asset) && r.asset !== 0);
+  if (lastWithAsset) {
+    labels.push('Terminal');
+    data.push(lastWithAsset.asset);
+  }
+
+  const ctx = document.getElementById('cashFlowChart').getContext('2d');
+  if (cashFlowChart) cashFlowChart.destroy();
+
+  cashFlowChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cash Flows',
+        data,
+        backgroundColor: (ctx) => {
+          const v = ctx.raw;
+          // negative (contrib) vs positive (terminal)
+          return v < 0 ? 'rgba(220,53,69,0.7)' : 'rgba(25,135,84,0.7)';
+        },
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Date / Terminal' } },
+        y: {
+          title: { display: true, text: 'Cash Flow (absolute currency units)' },
+          ticks: {
+            callback: (v) => {
+              try { return Number(v).toLocaleString(); } catch { return v; }
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Contribution Cash Flows & Terminal Value' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              const lbl = v < 0 ? 'Contribution' : 'Terminal';
+              const fmt = (() => { try { return Number(v).toLocaleString(); } catch { return v; }})();
+              return `${lbl}: ${fmt}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 
 async function loadCSVDataForMetrics() {
   try {
@@ -568,7 +989,10 @@ window.addEventListener('load', async () => {
   // Load metrics independently
   await loadCSVDataForMetrics();
 });
-
+window.addEventListener('load', () => {
+  console.log('🔔 loadCashFlowChart() starting…');
+  loadCashFlowChart();
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.getElementById('seriesToggle');
