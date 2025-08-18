@@ -35,26 +35,38 @@
           <li class="mb-2"><strong>Performance Fee:</strong> 25% of profits above 50% hurdle</li>
         </ul>
 
+        
         <h4>Performance Metrics</h4>
-        <h4>Performance Metrics</h4>
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <span class="metric-label">YTD Portfolio Return:</span>
-            <span class="metric-value text-success">—</span>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">YTD Fund Return (Before fees):</span>
+              <span class="metric-value text-success">
+                {% if metrics.ytd_return %}{{ (metrics.ytd_return * 100) | round(2) }}%{% else %}—{% endif %}
+              </span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Your Portfolio Value (NAV):</span>
+              <span class="metric-value">
+                {% if metrics.portfolio_value_nav %}
+                  {{ "{:,.0f}".format(metrics.portfolio_value_nav) }} IRR
+                {% else %}
+                  —
+                {% endif %}
+              </span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Annualized Return (IRR) of your Investment:</span>
+              <span class="metric-value text-success">
+                {% if metrics.irr %}{{ (metrics.irr * 100) | round(2) }}%{% else %}—{% endif %}
+              </span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Locked-In Return Ahead:</span>
+              <span class="metric-value">
+                {% if metrics.locked_in_return %}{{ (metrics.locked_in_return * 100) | round(2) }}%{% else %}—{% endif %}
+              </span>
+            </div>
           </div>
-          <div class="metric-item">
-            <span class="metric-label">Portfolio Value (NAV):</span>
-            <span class="metric-value">—</span>
-          </div>
-          <div class="metric-item">
-            <span class="metric-label">Annualized Return:</span>
-            <span class="metric-value text-success">—</span>
-          </div>
-          <div class="metric-item">
-            <span class="metric-label">Locked-In Return:</span>
-            <span class="metric-value">—</span>
-          </div>
-        </div>
 
       </div>
     </div>
@@ -184,742 +196,27 @@
 <script>
 let fundChart;
 let cashFlowChart;
-let csvRows = [];
 let seriesNames = [];
 const EXTRA_SERIES_KEY = "Fund (After Fee)";
 let selectedSeries = new Set();  // which series user wants visible
+let fundPayload; // was missing in your globals
 
+/** Fetch rebased series from Python */
+async function loadFundSeries(startStr, endStr) {
+  const url = `/api/fund-series?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`API error ${r.status}`);
+  fundPayload = await r.json();
+  console.log("📦 fundPayload:", fundPayload);
 
-
-//          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Detect delimiter
-function detectDelimiter(headerLine) {
-  const cands = [',',';','\t','|'];
-  let best = ',', bestCount = 0;
-  for (const d of cands) {
-    const c = headerLine.split(d).length - 1;
-    if (c > bestCount) { best = d; bestCount = c; }
+  // Set globals used by UI
+  seriesNames = fundPayload.series_names || [];
+  if (selectedSeries.size === 0) {
+    seriesNames.forEach(s => selectedSeries.add(s)); // select all by default
   }
-  return best;
+  renderSeriesControls();
 }
 
-// Parse number with localization and % handling
-function parseNumber(s) {
-  if (s == null) return NaN;
-  s = String(s).trim().replace(/^\uFEFF/, '').replace(/\u00A0/g, '');
-  let hadPercent = /%/.test(s);
-  s = s.replace(/%/g, '');
-  const hasComma = s.includes(','), hasDot = s.includes('.');
-  if (hasComma && hasDot) {
-    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',', '.');
-    else s = s.replace(/,/g,'');
-  } else if (hasComma) {
-    s = s.replace(',', '.');
-  }
-  let v = parseFloat(s);
-  if (!isFinite(v)) return NaN;
-  if (hadPercent) v = v / 100;
-  return v;
-}
-
-// Parse CSV with fixed column indexes
-function parseCSVMulti(csvText) {
-  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-  if (lines.length < 2) throw new Error('CSV appears empty');
-
-  const headerRaw = lines[0].replace(/^\uFEFF/, '');
-  const delim = detectDelimiter(headerRaw);
-
-  const dateCol = 0; // First column is date
-  const colIndexes = [
-    { name: 'Accumulated Return', idx: 1 },
-    { name: 'Bourse Index', idx: 2 },
-    { name: 'Gold Index', idx: 3 },
-    { name: 'Dollar Index', idx: 4 }
-
-    
-  ];
-
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split(delim);
-    const dRaw = parts[dateCol]?.trim();
-    if (!dRaw) continue;
-
-    const dt = new Date(dRaw);
-    const iso = isNaN(dt.getTime()) ? dRaw : dt.toISOString().split('T')[0];
-
-    const rec = { date: iso, series: {} };
-    colIndexes.forEach(col => {
-      const v = parseNumber(parts[col.idx]);
-      rec.series[col.name] = isFinite(v) ? v : null;
-    });
-    rows.push(rec);
-  }
-
-  rows.sort((a,b) => (a.date < b.date ? -1 : 1));
-  return { rows, names: colIndexes.map(c => c.name) };
-}
-
-function firstValid(arr) {
-  for (const x of arr) {
-    if (x != null && isFinite(x)) return x;
-  }
-  return null;
-}
-
-async function loadCSVDataForChart() {
-  try {
-    const investorEmail = "{{ investor_email }}";
-    const safeFileName = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
-    const filePath = `/static/${safeFileName}`;
-
-    const resp = await fetch(filePath, { cache: 'no-store' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    const text = await resp.text();
-    const parsed = parseCSVMulti(text);
-    csvRows = parsed.rows;
-    seriesNames = parsed.names;
-     
-      // 🛠 Debug logs
-    console.log("CSV loaded from:", filePath);
-    console.log("Number of rows loaded:", csvRows.length);
-    console.log("Series names parsed:", seriesNames);
- 
-  
-       // build the dropdown now that we have seriesNames
-    renderSeriesControls();
-
-    if (!csvRows.length || !seriesNames.length) {
-      throw new Error('No usable chart data/series found');
-    }
-
-    
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    document.getElementById('startDate').value = csvRows[0].date;
-    document.getElementById('endDate').value = todayStr;
-
-    updateChart();
-  } catch (err) {
-    console.error('Error loading/parsing chart CSV:', err);
-    alert('Could not read chart CSV file.');
-  }
-}
-
-function filterByDate(startDate, endDate) {
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s) || isNaN(e)) return [];
-  return csvRows.filter(r => {
-    const t = new Date(r.date);
-    return !isNaN(t) && t >= s && t <= e;
-  });
-}
-
-function rebaseSeries(values) {
-  const base = firstValid(values);
-  if (base == null || !isFinite(base) || base <= -1) return values.map(_ => null);
-  return values.map(v => (v == null || !isFinite(v)) ? null : (((1 + v) / (1 + base)) - 1) * 100);
-}
-
-function updateChart() {
-  const startDate = document.getElementById('startDate').value;
-  const endDate   = document.getElementById('endDate').value;
-  if (!startDate || !endDate || !csvRows.length) return;
-
-  const rows = filterByDate(startDate, endDate);
-  if (!rows.length) return;
-
-  const labels = rows.map(r => r.date);
-  const datasets = [];
-  const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
-
-  // helper: is this series currently selected?
-  const want = (name) => selectedSeries.has(name);
-
-  // robust fund detection (kept from your version)
-  const FUND_ALIASES = ['fund','vega core fund','vega fund','core fund','vega'];
-  const isFund = (name, idx) => {
-    const n = String(name || '').toLowerCase().trim();
-    return FUND_ALIASES.some(a => n === a || n.includes(a)) || idx === 0;
-  };
-
-  // fee params
-  const start = new Date(startDate);
-  const mYear = 0.02; // management 2% p.a.
-  const hYear = 0.5; // hurdle 40% p.a.
-  let fundAfterFee = null;
-
-  seriesNames.forEach((name, i) => {
-    const raw = rows.map(r => r.series[name]);
-    const rebasedPct = rebaseSeries(raw);
-
-    // compute after-fee off the fund (even if hidden, so it can be toggled on without recomputation)
-    if (isFund(name, i)) {
-      fundAfterFee = rebasedPct.map((ret, idx) => {
-        const currentDate = new Date(rows[idx].date);
-        const T = (currentDate - start) / 86400000; // days since start
-        const m_T = Math.pow(1 + mYear, T / 365) - 1;
-        const h_T = Math.pow(1 + hYear, T / 365) - 1;
-
-        let investorRet;
-        console.log("Index:", idx, "Raw ret value:", ret, "Type:", typeof ret);
-        console.log("Index:", idx, "HT value:", h_T, "Type:", typeof ret);
-        if (ret/100 > h_T) {
-          investorRet = Math.max(h_T, 0.75 * ret);
-        } else {
-          investorRet = ret;
-        }
-        return investorRet - m_T*100;
-      });
-    }
-
-    // only plot if this series is selected
-    if (want(name)) {
-      datasets.push({
-        label: name,
-        data: rebasedPct,
-        borderWidth: 0.5,
-        tension: 0.1,
-        borderColor: palette[datasets.length % palette.length],
-        backgroundColor: 'rgba(0,0,0,0)',
-        spanGaps: true,
-        pointRadius: 0.5,
-        pointHoverRadius: 0.5
-      });
-    }
-  });
-
-  // add extra line only if selected
-  if (Array.isArray(fundAfterFee) && want(EXTRA_SERIES_KEY)) {
-    datasets.push({
-      label: EXTRA_SERIES_KEY,
-      data: fundAfterFee,
-      borderWidth: 0.5,
-      tension: 0.1,
-      borderColor: palette[datasets.length % palette.length],
-      backgroundColor: 'rgba(0,0,0,0)',
-      spanGaps: true,
-      pointRadius: 0.5,
-      pointHoverRadius: 0.5
-    });
-  }
-
-  // if user deselects everything, keep chart alive but empty data
-  const ctx = document.getElementById('fundChart').getContext('2d');
-  if (fundChart) fundChart.destroy();
-  fundChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { title: { display: true, text: 'Date' } },
-        y: {
-          title: { display: true, text: 'Return since start (%)' },
-          ticks: { callback: v => v.toFixed(1) + '%' }
-        }
-      },
-      plugins: {
-        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
-        legend: { display: true, position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
-          }
-        }
-      }
-    }
-  });
-}
-
-function computeXIRR(cashflows, guess = 0.1) {
-  // cashflows: array of {date: Date, value: number}
-  const maxIter = 100, tol = 1e-7;
-  let rate = guess;
-
-  for (let iter = 0; iter < maxIter; iter++) {
-    let f = 0, df = 0;
-    const t0 = cashflows[0].date;
-
-    for (const {date, value} of cashflows) {
-      const days = (date - t0) / (1000 * 60 * 60 * 24);
-      const frac = days / 365.0;
-      const denom = Math.pow(1 + rate, frac);
-      f += value / denom;
-      df += -(frac * value) / (denom * (1 + rate));
-    }
-
-    const newRate = rate - f / df;
-    if (Math.abs(newRate - rate) < tol) return newRate;
-    rate = newRate;
-  }
-  return rate;
-}
-
-
-async function loadCashFlowChart() {
-  try {
-    const investorEmail = "{{ investor_email }}";
-    const safeFileName  = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
-    const filePath      = `/static/${safeFileName}`;
-
-    const resp = await fetch(filePath, { cache: 'no-store' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const text = await resp.text();
-
-    // Parse CSV
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length < 2) throw new Error('CSV appears empty');
-    const delim = detectDelimiter(lines[0]);
-    const rows  = lines.slice(1).map(l => l.split(delim));
-
-    console.log(`CF CSV loaded: ${rows.length} rows`);
-
-    // Hardcoded indices: 0=date, 7=asset, 8=contribution
-    const cfRows = rows.map((r, idx) => {
-      const d  = new Date(r[0]);
-      const ds = isNaN(d.getTime()) ? r[0] : d.toISOString().split('T')[0];
-
-      const asset       = parseNumber(r[7]);
-      const contribRaw  = parseNumber(r[8]);
-
-      return {
-        date: ds,
-        asset: isFinite(asset) ? asset : NaN,
-        contrib: isFinite(contribRaw) ? -Math.abs(contribRaw) : 0
-      };
-    });
-
-    // Ensure date inputs are set before drawing
-    const startEl = document.getElementById('startDate');
-    const endEl   = document.getElementById('endDate');
-    if (startEl && !startEl.value && cfRows.length) startEl.value = cfRows[0].date;
-    if (endEl   && !endEl.value   && cfRows.length) endEl.value   = cfRows[cfRows.length - 1].date;
-
-    console.log(`CF date window init: ${startEl?.value} → ${endEl?.value}`);
-
-    // === Chart render ===
-    function renderCFChart(cfRows) {
-      let xirr = NaN;   // <-- define here, top of function
-      const s = new Date(startEl?.value);
-      const e = new Date(endEl?.value);
-      if (!(s instanceof Date) || !(e instanceof Date)) return;
-      
-
-      const win = cfRows.filter(r => {
-        const t = new Date(r.date);
-        return !isNaN(t) && t >= s && t <= e;
-      });
-      if (win.length === 0) return;
-
-      const labels = [];
-      const contribs = [];
-      const mgmtFees = [];
-      const perfFees = [];
-      const residuals = [];
-
-      // Parameters
-      const mYear = 0.02;  // 2% management fee annual
-      const hYear = 0.5;  // hurdle example: 5% annual
-
-      // Contributions shown as negative bars
-      win.forEach(r => {
-        if (isFinite(r.contrib) && Math.abs(r.contrib) > 0) {
-          labels.push(r.date);
-          contribs.push(r.contrib);
-          mgmtFees.push(0);
-          perfFees.push(0);
-          residuals.push(0);
-        }
-      });
-
-      // === Use endDate as "current date" ===
-      const currentDate = new Date(); // always use today
-      // Find asset value at or before currentDate
-      const todayRow = [...cfRows].reverse().find(r => {
-        const d = new Date(r.date);
-        return !isNaN(d) && d <= currentDate && isFinite(r.asset) && r.asset > 0;
-      });
-
-      if (todayRow) {
-        let totalMgmt = 0, totalPerf = 0;
-
-        // For each contribution, compute fees up to current date
-        cfRows.forEach((r, idx) => {
-          if (r.contrib < 0) {
-            const contribDate = new Date(r.date);
-            if (contribDate <= currentDate) {
-              const T = (currentDate - contribDate) / (1000 * 60 * 60 * 24); // days
-              const m_T = Math.pow(1 + mYear, T / 365) - 1;
-              const h_T = Math.pow(1 + hYear, T / 365) - 1;
-
-              // Find return at current (end date or nearest before)
-              const currentRow = [...rows].reverse().find(rr => {
-                const d = new Date(rr[0]);
-                return !isNaN(d) && d <= currentDate;
-              });
-              const retAtCurrent = currentRow ? parseNumber(currentRow[1]) : NaN;
-
-              // Return at contribution
-              
-              const retAtContrib = parseNumber(rows[idx][1]);
-              if (!isFinite(retAtCurrent) || !isFinite(retAtContrib)) return;
-
-              const Ret = (1 + retAtCurrent) / (1 + retAtContrib) - 1;
-
-              let investorRet;
-              if (Ret > h_T) {
-                investorRet = Math.max(h_T, 0.75 * Ret);
-              } else {
-                investorRet = Ret;
-              }
-
-              const base = Math.abs(r.contrib);
-              const mgmtFee = base * m_T;
-              const perfFee = base * (Ret-investorRet);
-              console.log(
-                `✅ Contribution @ ${r.date} | T=${T.toFixed(1)} days | base=${base.toFixed(2)}| retAtContrib=${retAtContrib.toFixed(4)} |
-                 retAtCurrent=${retAtCurrent.toFixed(4)} | investorRet=${investorRet.toFixed(4)}| Ret=${Ret.toFixed(4)} | h_T=${h_T.toFixed(4)} | m_T=${m_T.toFixed(4)} |MgmtFee=${mgmtFee.toFixed(2)} 
-                   | PerfFee=${perfFee.toFixed(2)}`
-              );
-
-
-              totalMgmt += mgmtFee;
-              totalPerf += perfFee;
-            }
-          }
-        });
-
-        const residual = todayRow.asset - totalMgmt - totalPerf;
-        // === XIRR calculation ===
-          // === XIRR calculation ===
-        const cfSeries = [];
-
-        // Contributions (negative)
-        cfRows.forEach(r => {
-          if (isFinite(r.contrib) && r.contrib !== 0) {
-            cfSeries.push({ date: new Date(r.date), value: r.contrib });
-          }
-        });
-
-        // Terminal value (positive)
-        cfSeries.push({ date: currentDate, value: residual });
-        // 🔍 Debug logs
-        console.log("CF Series for XIRR:");
-        cfSeries.forEach(cf => {
-          console.log(`   ${cf.date.toISOString().split('T')[0]} | ${cf.value}`);
-        });
-        // Compute XIRR
-        
-        try {
-          xirr = computeXIRR(cfSeries) * 100; // percent
-          console.log(`📈 XIRR = ${xirr.toFixed(2)}%`);
-        } catch (err) {
-          console.error("XIRR failed:", err);
-        }
-
-
-
-
-
-        // === Terminal stacked bar ===
-        labels.push("Terminal");
-        contribs.push(0);
-        mgmtFees.push(totalMgmt);
-        perfFees.push(totalPerf);
-        residuals.push(residual);
-      }
-
-      const ctx = document.getElementById('cashFlowChart').getContext('2d');
-      if (cashFlowChart) cashFlowChart.destroy();
-      console.log("🎯 Final XIRR before chart build:", xirr);
-      cashFlowChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-          {
-            label: 'Contributions',
-            data: contribs,
-            backgroundColor: 'rgba(220,53,69,0.7)',
-            stack: 'stack1',
-            order: 1
-          },
-          {
-            label: 'Investor Share',
-            data: residuals,
-            backgroundColor: 'rgba(25,135,84,0.7)',
-            stack: 'stack1',
-            order: 2
-          },
-          {
-            label: 'Perf Fee',
-            data: perfFees,
-            backgroundColor: 'rgba(13,110,253,0.7)',
-            stack: 'stack1',
-            order: 3
-          },
-          {
-            label: 'Mgmt Fee',
-            data: mgmtFees,
-            backgroundColor: 'rgba(255,193,7,0.7)',
-            stack: 'stack1',
-            order: 4
-          }
-        ]
-        },
-        
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: { display: true, text: `Cash Flows, Fees & Terminal Value (XIRR: ${isFinite(xirr) ? xirr.toFixed(2)+'%' : 'n/a'})`  },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const v = ctx.parsed.y;
-                  return `${ctx.dataset.label}: ${Number(v).toLocaleString()}`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: { stacked: true },
-            y: { stacked: true }
-          }
-        }
-      });
-    }
-
-    // Initial render
-    renderCFChart(cfRows);
-
-    // Hook listeners
-    ['startDate','endDate'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && !el.dataset.cfHooked) {
-        el.addEventListener('change', () => renderCFChart(cfRows));
-        el.dataset.cfHooked = '1';
-      }
-    });
-    const updBtn = document.getElementById('updateChart');
-    if (updBtn && !updBtn.dataset.cfHooked) {
-      updBtn.addEventListener('click', () => renderCFChart(cfRows));
-      updBtn.dataset.cfHooked = '1';
-    }
-  } catch (e) {
-    console.error('❌ Cash flow chart error:', e);
-  }
-}
-
-// Filter, build series, and draw bars
-function updateCFChart(cfRows) {
-  if (!Array.isArray(cfRows) || cfRows.length === 0) return;
-
-  const startDate = document.getElementById('startDate')?.value;
-  const endDate   = document.getElementById('endDate')?.value;
-  if (!startDate || !endDate) return;
-
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-
-  // Filter by date window
-  const win = cfRows.filter(r => {
-    const t = new Date(r.date);
-    return !isNaN(t) && t >= s && t <= e;
-  });
-  if (win.length === 0) return;
-
-  // Build labels & data: contributions (as negative), then a final "Terminal" bar with NAV
-  const labels = [];
-  const data   = [];
-
-  win.forEach(r => {
-    // Only show non-zero contributions
-    if (isFinite(r.contrib) && Math.abs(r.contrib) > 0) {
-      labels.push(r.date);
-      // Force negative sign for contributions
-      data.push(-Math.abs(r.contrib));
-    }
-  });
-
-  // Terminal value: last available NAV in window
-  const lastWithAsset = [...win].reverse().find(r => isFinite(r.asset) && r.asset !== 0);
-  if (lastWithAsset) {
-    labels.push('Terminal');
-    data.push(lastWithAsset.asset);
-  }
-
-  const ctx = document.getElementById('cashFlowChart').getContext('2d');
-  if (cashFlowChart) cashFlowChart.destroy();
-
-  cashFlowChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Cash Flows',
-        data,
-        backgroundColor: (ctx) => {
-          const v = ctx.raw;
-          // negative (contrib) vs positive (terminal)
-          return v < 0 ? 'rgba(220,53,69,0.7)' : 'rgba(25,135,84,0.7)';
-        },
-        borderWidth: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { title: { display: true, text: 'Date / Terminal' } },
-        y: {
-          title: { display: true, text: 'Cash Flow (absolute currency units)' },
-          ticks: {
-            callback: (v) => {
-              try { return Number(v).toLocaleString(); } catch { return v; }
-            }
-          }
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: 'Contribution Cash Flows & Terminal Value' },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const v = ctx.parsed.y;
-              const lbl = v < 0 ? 'Contribution' : 'Terminal';
-              const fmt = (() => { try { return Number(v).toLocaleString(); } catch { return v; }})();
-              return `${lbl}: ${fmt}`;
-            }
-          }
-        }
-      }
-    }
-  });
-}
-
-
-async function loadCSVDataForMetrics() {
-  try {
-    const investorEmail = "{{ investor_email }}";
-    const safeFileName = investorEmail.replace(/@/g, '-').replace(/\./g, '-') + "-data.csv";
-    const filePath = `/static/${safeFileName}`;
-    console.log("🔍 Fetching metrics CSV from:", filePath);
-
-    const resp = await fetch(filePath, { cache: 'no-store' });
-    console.log("✅ Response status:", resp.status);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    const text = await resp.text();
-    console.log("📄 CSV Raw Text:\n", text);
-
-    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-    console.log("📊 Line count (incl header):", lines.length);
-
-    if (lines.length < 2) {
-      console.warn("⚠️ CSV file empty or invalid.");
-      return;
-    }
-
-    const delim = detectDelimiter(lines[0]);
-    console.log("🛠 Detected delimiter:", JSON.stringify(delim));
-
-    const rows = lines.slice(1).map(l => l.split(delim));
-    console.log("📋 Parsed data rows count:", rows.length);
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    console.log("📅 Today ISO:", todayStr);
-
-    const safeGet = (row, idx) => (row && row.length > idx) ? parseNumber(row[idx]) : NaN;
-
-    // 1️⃣ Find today's index
-    let todayIndex = rows.findIndex(r => {
-      const d = new Date(r[0]);
-      return !isNaN(d) && d.toISOString().split('T')[0] === todayStr;
-    });
-    console.log("📍 Initial todayIndex:", todayIndex);
-
-    if (todayIndex === -1) {
-      console.log("⚠️ Today not found, searching for last past date");
-      todayIndex = rows.findIndex(r => {
-        const d = new Date(r[0]);
-        return !isNaN(d) && d <= new Date();
-      });
-      if (todayIndex === -1) todayIndex = rows.length - 1;
-    }
-    console.log("📍 Final todayIndex:", todayIndex, "Date:", rows[todayIndex]?.[0]);
-
-    // 2️⃣ Backward search for YTD, Annualized, NAV
-    const findValidBackwards = (startIndex, colIdx, label) => {
-      for (let i = startIndex; i >= 0; i--) {
-        const val = safeGet(rows[i], colIdx);
-        console.log(`🔎 Check ${label} @ row ${i}, date ${rows[i][0]} →`, val);
-        if (isFinite(val) && val !== 0) {
-          console.log(`✅ Found valid ${label} @ row ${i}`, val);
-          return { val, idx: i };
-        }
-      }
-      console.log(`❌ No valid ${label} found backwards from index ${startIndex}`);
-      return { val: NaN, idx: null };
-    };
-
-    const ytdInfo = findValidBackwards(todayIndex, 5, "YTD");
-    const annInfo = findValidBackwards(todayIndex, 6, "Annualized");
-    const navInfo = findValidBackwards(todayIndex, 7, "NAV");
-
-    // 3️⃣ Locked Base is always from the latest date in the file
-    const latestRowIndex = rows.length - 1;
-    const latestRow = rows[latestRowIndex];
-    const lockedBase = safeGet(latestRow, 1);
-    const lockedDate = new Date(latestRow[0]);
-
-    console.log("📌 Locked Base:", lockedBase, "Locked Date:", lockedDate.toISOString().split('T')[0]);
-
-    const daysDiff = Math.abs((lockedDate - new Date()) / 86400000);
-    console.log("📆 Days diff (Locked Date - Today):", daysDiff);
-
-    let lockedIn = null;
-    if (isFinite(lockedBase) && isFinite(ytdInfo.val) && daysDiff > 0) {
-      lockedIn = Math.pow((1 + lockedBase) / (1 + ytdInfo.val), 365 / daysDiff) - 1;
-    }
-    console.log("🔒 LockedIn computed:", lockedIn);
-
-    // 4️⃣ Update DOM
-    const metricEls = document.querySelectorAll('.metric-item .metric-value');
-    console.log("🖊 Found metric elements:", metricEls.length);
-
-    if (isFinite(ytdInfo.val)) metricEls[0].textContent = (ytdInfo.val * 100).toFixed(2) + '%';
-    if (isFinite(navInfo.val)) metricEls[1].textContent = navInfo.val.toLocaleString();
-    if (isFinite(annInfo.val)) metricEls[2].textContent = (annInfo.val * 100).toFixed(2) + '%';
-    if (isFinite(lockedIn))    metricEls[3].textContent = (lockedIn * 100).toFixed(2) + '%';
-
-  } catch (err) {
-    console.error('❌ Performance metric error:', err);
-  }
-}
 function renderSeriesControls() {
   const container = document.getElementById('seriesControls');
 
@@ -979,29 +276,107 @@ function renderSeriesControls() {
   if (btnAll) btnAll.onclick = () => { selectedSeries = new Set(allSeries); renderSeriesControls(); updateChart(); };
   if (btnNone) btnNone.onclick = () => { selectedSeries.clear(); renderSeriesControls(); updateChart(); };
 }
+
+/** Build the chart from fundPayload + selectedSeries */
+function updateChart() {
+  if (!fundPayload || !Array.isArray(fundPayload.dates)) return;
+
+  const labels = fundPayload.dates;
+  const datasets = [];
+  const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
+
+  seriesNames.forEach((name, i) => {
+    if (!selectedSeries.has(name)) return;
+    const arr = (fundPayload.series && fundPayload.series[name]) || [];
+    datasets.push({
+      label: name,
+      data: arr.map(v => (v == null ? null : v * 100)),  // Python returns decimals; chart shows %
+      borderWidth: 0.8,
+      tension: 0.1,
+      borderColor: palette[datasets.length % palette.length],
+      backgroundColor: 'rgba(0,0,0,0)',
+      spanGaps: true,
+      pointRadius: 0.6,
+      pointHoverRadius: 1
+    });
+  });
+
+  const ctx = document.getElementById('fundChart').getContext('2d');
+  if (fundChart) fundChart.destroy();
+  fundChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Date' } },
+        y: {
+          title: { display: true, text: 'Return since start (%)' },
+          ticks: { callback: v => (v ?? 0).toFixed(1) + '%' }
+        }
+      },
+      plugins: {
+        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
+        legend: { display: true, position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
+          }
+        }
+      }
+    }
+  });
+}
+
+
+
+
+
+/** Fund Chart Event Binding - */
+
+
 ['startDate','endDate'].forEach(id =>
   document.getElementById(id).addEventListener('change', updateChart)
 );
-document.getElementById('updateChart').addEventListener('click', updateChart);
-window.addEventListener('load', async () => {
-  // Load chart independently
-  await loadCSVDataForChart();
-  // Load metrics independently
-  await loadCSVDataForMetrics();
-});
-window.addEventListener('load', () => {
-  console.log('🔔 loadCashFlowChart() starting…');
-  loadCashFlowChart();
-});
 
-document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.getElementById('seriesToggle');
-  if (toggle) {
-    toggle.addEventListener('shown.bs.dropdown', () => {
-      console.log("Dropdown opened — re-rendering series controls");
-      renderSeriesControls();
-    });
+document.addEventListener('DOMContentLoaded', async () => {
+  // First fetch with no date restrictions (backend should still send Fiscal_year_start)
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Load once to discover fiscal year start from JSON
+  await loadFundSeries("", todayStr);
+
+  // Get fiscal start from payload, fallback = 6 months ago
+  let fiscalStart = (fundPayload && fundPayload.Fiscal_year_start) || null;
+  if (!fiscalStart) {
+    const fallback = new Date();
+    fallback.setMonth(today.getMonth() - 6);
+    fiscalStart = fallback.toISOString().split('T')[0];
   }
+
+  // Prefill inputs
+  document.getElementById("startDate").value = fiscalStart;
+  document.getElementById("endDate").value   = todayStr;
+
+  // Now reload properly with fiscal start → today
+  await loadFundSeries(fiscalStart, todayStr);
+  updateChart();
+
+  // ✅ Bind Update button
+  document.getElementById('updateChart').addEventListener('click', async () => {
+    const startStr = document.getElementById('startDate').value;
+    const endStr   = document.getElementById('endDate').value;
+
+    if (!startStr || !endStr) {
+      alert("Please pick both start and end dates");
+      return;
+    }
+
+    await loadFundSeries(startStr, endStr);
+    updateChart();
+  });
 });
 
 </script>
@@ -1011,16 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-
-
-
-
-
-
-
 <!-- Chart.js -->
 
 <script>
+  /** Compensation chart - */
 document.addEventListener('DOMContentLoaded', async () => {
   const compCanvas = document.getElementById('compensationChart');
   
@@ -1084,6 +453,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to load compensation.csv', e);
   }
 });
-</script>
 
+
+
+
+</script>
+<!-- ✅ New Cashflow Chart Renderer -->
+<script>
+
+
+const CF_DATA = {{ metrics.cashflow_chart | tojson }};
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("🔍 Raw CF_DATA:", CF_DATA);
+
+  const ctx = document.getElementById('cashFlowChart').getContext('2d');
+  if (!CF_DATA) {
+    console.warn("⚠️ No CF_DATA provided");
+    return;
+  }
+
+  const contribDates = CF_DATA.contributions.map(c => c.date);
+  const contribVals  = CF_DATA.contributions.map(c => (c.value));
+
+  console.log("📅 Contribution Dates:", contribDates);
+  console.log("💰 Contribution Values (negative):", contribVals);
+
+  const term = CF_DATA.terminal || { investor_share: 0, perf_fee: 0, mgmt_fee: 0 };
+  console.log("📦 Terminal block:", term);
+
+  const labels = [...contribDates, "Terminal"];
+
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: "Contributions",
+        data: [...contribVals,null],
+        backgroundColor: "rgba(220,53,69,0.7)",
+        stack: "contribs"
+        
+      },
+      {
+        label: "Investor Share",
+        data: [...Array(contribVals.length).fill(null), term.investor_share],
+        backgroundColor: "rgba(25,135,84,0.7)",
+        stack: "terminal"
+      },
+      {
+        label: "Perf Fee",
+        data: [...Array(contribVals.length).fill(null), term.perf_fee],
+        backgroundColor: "rgba(255,193,7,0.7)",
+        stack: "terminal"
+      },
+      {
+        label: "Mgmt Fee",
+        data: [...Array(contribVals.length).fill(null), term.mgmt_fee],
+        backgroundColor: "rgba(13,110,253,0.7)",
+        stack: "terminal"
+      }
+    ]
+  };
+
+  console.log("📊 Final chart data:", data);
+
+  new Chart(ctx, {
+    type: "bar",
+    data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,
+          text: `Cash Flow Chart (XIRR: ${(CF_DATA.xirr*100).toFixed(2)}%)`
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: false,
+          ticks: {
+            align: 'center'   // 👈 helps centering tick labels
+          }
+        },
+        y: { stacked: true }
+      },
+      // 👇 these two control bar thickness & centering
+      datasets: {
+        bar: {
+          categoryPercentage: 0.1,  // default 0.8 → narrower, centered
+          barPercentage: 9.9        // controls individual bar width
+        }
+      }
+    }
+  });
+});
+</script>
 {% endblock %}

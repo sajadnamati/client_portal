@@ -2,12 +2,20 @@ import os
 from flask import Flask, redirect, url_for, session, render_template, request
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
+from analysis_functions import performance_metrics
 import json
+from flask import jsonify, request
+from analysis_functions import compute_rebased_indices  # import the function above
+import numpy as np
+import math
+# Base directory = the folder where app.py is located
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")  # fallback for local
 
 # --- Toggle this for mock login ---
-MOCK_MODE = False  # True for local testing without Google OAuth
+MOCK_MODE = True  # True for local testing without Google OAuth
 
 oauth = OAuth(app)
 google = oauth.register(
@@ -45,7 +53,8 @@ def client_portal():
 
     # Load investor metadata from JSON
     try:
-        with open("static/investors.json", "r", encoding="utf-8") as f:
+        json_path = os.path.join(BASE_DIR, "static", "investors.json")
+        with open(json_path, "r", encoding="utf-8") as f:
             investors = json.load(f)
     except FileNotFoundError:
         investors = {}
@@ -62,6 +71,23 @@ def client_portal():
     join_date = investor_info.get("join_date", None)
     currency = investor_info.get("currency", "USD")
 
+     # Compute performance metrics for this investor
+    try:
+        metrics = performance_metrics(investor_email, "static/investors.json")
+    except Exception as e:
+        print("⚠️ Metrics calculation failed:", e)
+        metrics = {
+            "portfolio_value_nav": None,
+            "management_fees_total": None,
+            "performance_fees_total": None,
+            "irr": None,
+            "ytd_return": None,
+            "locked_in_return": None
+        }
+
+
+
+
     return render_template(
         "client_portal.html",
         year=datetime.now().year,
@@ -69,7 +95,10 @@ def client_portal():
         investor_name=investor_name,
         performance_file=performance_file,
         join_date=join_date,
-        currency=currency
+        currency=currency,
+        metrics=metrics,
+        cf_data=metrics.get("cashflow_chart")
+        
     )
 
 
@@ -107,5 +136,61 @@ def logout():
     session.pop('user', None)
     return redirect(url_for("homepage"))
 
+def _clean_for_json(obj, path="root"):
+    if isinstance(obj, dict):
+        return {k: _clean_for_json(v, f"{path}.{k}") for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_for_json(x, f"{path}[{i}]") for i, x in enumerate(obj)]
+    elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        print(f"⚠️ Found invalid float at {path}: {obj}, replacing with None")
+        return None
+    elif isinstance(obj, (np.floating, np.integer)) and (np.isnan(obj) or np.isinf(obj)):
+        print(f"⚠️ Found invalid numpy value at {path}: {obj}, replacing with None")
+        return None
+    return obj
+
+@app.get("/api/fund-series")
+def api_fund_series():
+    if not session.get("user"):
+        return jsonify({"error": "unauthorized"}), 401
+
+    investor_email = session["user"].get("email")
+    # locate the investor CSV + fee params from your existing JSON map
+    json_path = os.path.join(BASE_DIR, "static", "investors.json")
+    with open(json_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    inv = cfg.get(investor_email, {})
+    csv_path = os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
+
+    fees = inv.get("fees", {})
+    fixed   = float(fees.get("management_fee", 0.02))
+    hurdle  = float(fees.get("hurdle_rate", 0.50))
+    perffee = float(fees.get("performance_fee", 0.25))
+
+    start = request.args.get("start")
+    end   = request.args.get("end")
+
+    # Default handling if missing
+    if not start:
+        start = "2024-10-01"   # or earliest possible
+    if not end:
+        end = datetime.now().strftime("%Y-%m-%d")
+
+    payload = compute_rebased_indices(
+        csv_path=csv_path,
+        start_date=start,
+        end_date=end,
+        fixed=fixed,
+        hurdle=hurdle,
+        perf_fee=perffee
+    )
+
+    # attach fiscal year start into payload
+    
+    cleaned = _clean_for_json(payload)
+    print("✅ Cleaned payload sample:", str(cleaned)[:300])  # show first 300 chars
+
+    return jsonify(payload)
 if __name__ == "__main__":
     app.run(debug=True)
+
