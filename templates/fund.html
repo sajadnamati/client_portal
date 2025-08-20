@@ -30,24 +30,16 @@
         </ul>
 
         <h4>Performance Metrics</h4>
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <span class="metric-label">Annualized performance from inception:</span>
-            <span class="metric-value text-success">+48.77%</span>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">YTD Fund Return (Before Fees):</span>
+              <span id="ytdReturn" class="metric-value text-success">—</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Locked-in Return:</span>
+              <span id="lockedInReturn" class="metric-value">—</span>
+            </div>
           </div>
-          <div class="metric-item">
-            <span class="metric-label">Sharpe Ratio:</span>
-            <span class="metric-value">1.85</span>
-          </div>
-          <div class="metric-item">
-            <span class="metric-label">Max Drawdown:</span>
-            <span class="metric-value text-danger">-4.2%</span>
-          </div>
-          <div class="metric-item">
-            <span class="metric-label">Volatility:</span>
-            <span class="metric-value">8.7%</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -94,11 +86,12 @@
 
   <!-- Second row: Compensation Structure -->
   <div class="fund-wrapper">
+    <!-- Left side: text -->
     <div class="fund-info">
-      <h4 data-bs-toggle="collapse" data-bs-target="#secondRowCollapse" style="cursor:pointer;">
+      <h4 data-bs-toggle="collapse" data-bs-target="#compChartCollapse" style="cursor:pointer;">
         Compensation Structure
       </h4>
-      <div class="collapse" id="secondRowCollapse">
+      <div class="collapse" id="compChartCollapse">
         <p class="text-muted text-justify mt-3">
           Our compensation model is designed to align the interests of the fund manager with those of our investors,
           ensuring that meaningful rewards are earned only when we generate exceptional value. The cornerstone of this
@@ -107,6 +100,7 @@
           results-driven environment that rewards strategic risk-taking and disciplined execution, while protecting
           investors from paying performance fees during periods of sub-par market conditions. This approach ensures that
           we only participate in profits that represent substantial outperformance beyond the already ambitious benchmark.
+
         </p>
 
         <div class="mt-4">
@@ -126,10 +120,12 @@
         <p class="small text-muted mt-3">
           * All parameters are subject to change based on prevailing market conditions, regulatory updates,
           and the fund’s strategic objectives. Any such changes will be communicated to investors in advance.
+
         </p>
       </div>
     </div>
 
+    <!-- Right side: chart -->
     <div class="chart-container">
       <div id="compChartCollapse" class="collapse">
         <div class="chart-area" style="height:400px;">
@@ -150,234 +146,31 @@ let csvRows = [];
 let seriesNames = [];
 const EXTRA_SERIES_KEY = "Fund (After Fee)";
 let selectedSeries = new Set();
-// detect delimiter
-function detectDelimiter(headerLine) {
-  const cands = [',',';','\t','|'];
-  let best = ',', bestCount = 0;
-  for (const d of cands) {
-    const c = headerLine.split(d).length - 1;
-    if (c > bestCount) { best = d; bestCount = c; }
+
+let fundPayload;
+
+/** Fetch rebased series from Python backend */
+async function loadFundSeries(startStr, endStr) {
+  const url = `/api/public-fund-series?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`API error ${r.status}`);
+  fundPayload = await r.json();
+
+  seriesNames = fundPayload.series_names || [];
+  if (selectedSeries.size === 0) {
+    seriesNames.forEach(s => selectedSeries.add(s)); // select all initially
   }
-  return best;
+  renderSeriesControls();
 }
 
-function parseNumber(s) {
-  if (s == null) return NaN;
-  s = String(s).trim().replace(/^\uFEFF/, '').replace(/\u00A0/g, '');
-  let hadPercent = /%/.test(s);
-  s = s.replace(/%/g, '');
-  const hasComma = s.includes(','), hasDot = s.includes('.');
-  if (hasComma && hasDot) {
-    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',', '.');
-    else s = s.replace(/,/g,'');
-  } else if (hasComma) {
-    s = s.replace(',', '.');
-  }
-  let v = parseFloat(s);
-  if (!isFinite(v)) return NaN;
-  if (hadPercent) v = v / 100;
-  return v;
-}
-
-function parseCSVMulti(csvText) {
-  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-  if (lines.length < 2) throw new Error('CSV appears empty');
-  const headerRaw = lines[0].replace(/^\uFEFF/, '');
-  const delim = detectDelimiter(headerRaw);
-  const headerCells = headerRaw.split(delim).map(h => h.trim());
-  const lower = headerCells.map(h => h.toLowerCase());
-  const dateIdx = lower.findIndex(h => ['date','timestamp','day','nav_date'].includes(h));
-  const dateCol = dateIdx >= 0 ? dateIdx : 0;
-  const seriesCols = headerCells.map((name, idx) => ({ name: name.trim(), idx })).filter(col => col.idx !== dateCol);
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split(delim);
-    if (parts.length <= dateCol) continue;
-    const dRaw = parts[dateCol]?.trim();
-    if (!dRaw) continue;
-    const dt = new Date(dRaw);
-    const iso = isNaN(dt.getTime()) ? dRaw : dt.toISOString().split('T')[0];
-    const rec = { date: iso, series: {} };
-    for (const col of seriesCols) {
-      const cell = parts[col.idx] != null ? parts[col.idx] : '';
-      const v = parseNumber(cell);
-      rec.series[col.name] = isFinite(v) ? v : null;
-    }
-    rows.push(rec);
-  }
-  rows.sort((a,b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  return { rows, names: seriesCols.map(c => c.name) };
-}
-
-function firstValid(arr) {
-  for (const x of arr) {
-    if (x != null && isFinite(x)) return x;
-  }
-  return null;
-}
-
-async function loadCSVData() {
-  try {
-    const resp = await fetch('{{ url_for("static", filename="fund_data.csv") }}', { cache: 'no-store' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const text = await resp.text();
-    const parsed = parseCSVMulti(text);
-    csvRows = parsed.rows;
-    seriesNames = parsed.names;
-
-   
-
-    if (!csvRows.length || !seriesNames.length) throw new Error('No usable data/series found');
-
- // Build dropdown once we have names
-    renderSeriesControls();
-
-    document.getElementById('startDate').value = csvRows[0].date;
-    document.getElementById('endDate').value   = csvRows[csvRows.length - 1].date;
-    updateChart();
-  } catch (err) {
-  console.error('Error loading/parsing CSV:', err);
-  alert('Could not read /static/fund_data.csv.');
-  document.getElementById('seriesControls').innerHTML = '<div class="text-danger">Error loading data</div>';
-}
-}
-
-function filterByDate(startDate, endDate) {
-  const s = new Date(startDate);
-  const e = new Date(endDate);
-  if (isNaN(s) || isNaN(e)) return [];
-  return csvRows.filter(r => {
-    const t = new Date(r.date);
-    return !isNaN(t) && t >= s && t <= e;
-  });
-}
-
-function rebaseSeries(values) {
-  const base = firstValid(values);
-  if (base == null || !isFinite(base) || base <= -1) return values.map(_ => null);
-  return values.map(v => (v == null || !isFinite(v)) ? null : (((1 + v) / (1 + base)) - 1) * 100);
-}
-
-function updateChart() {
-  const startDate = document.getElementById('startDate').value;
-  const endDate   = document.getElementById('endDate').value;
-  if (!startDate || !endDate || !csvRows.length) return;
-
-  const rows = filterByDate(startDate, endDate);
-  if (!rows.length) return;
-
-  const labels = rows.map(r => r.date);
-  const datasets = [];
-  const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
-  // helper: is this series currently selected?
-  const want = (name) => selectedSeries.has(name);
-  const start = new Date(startDate);
-
-  let fundAfterFee = [];
-
-  seriesNames.forEach((name, i) => {
-    const raw = rows.map(r => r.series[name]);
-    const rebasedPct = rebaseSeries(raw); // gross % returns since start date
-
-    if (want(name)) {
-      datasets.push({
-        label: name,
-        data: rebasedPct,
-        borderWidth: 0.5,
-        tension: 0.1,
-        borderColor: palette[datasets.length % palette.length],
-        backgroundColor: 'rgba(0,0,0,0)',
-        spanGaps: true,
-        pointRadius: 0.5,
-        pointHoverRadius: 0.5
-      });
-  }
-
-    // If this is the Fund series, calculate after-fee returns
-    if (name.toLowerCase().includes("fund")) {
-      const mYear = 0.02;
-      const hurdleYear = 0.90;
-
-      fundAfterFee = rebasedPct.map((ret, idx) => {
-        const currentDate = new Date(rows[idx].date);
-        const T = (currentDate - start) / (1000 * 60 * 60 * 24); // days since start
-        const m_T = Math.pow(1 + mYear, T / 365) - 1;
-        const h_T = Math.pow(1 + hurdleYear, T / 365) - 1;
-        console.log("Index:", idx, "T:", T, "Type:", typeof T);
-        let investorRet;
-        if (ret/100 > h_T) {
-          investorRet = Math.max(h_T, 0.75 * ret);
-        } else {
-          investorRet = ret;
-        }
-
-        const afterFeeRet = investorRet - m_T*100;
-        return afterFeeRet;
-      });
-    }
-  });
-
-  // Add Fund (After Fee) as extra series
-  if (fundAfterFee.length && want(EXTRA_SERIES_KEY)) {
-    datasets.push({
-      label: EXTRA_SERIES_KEY,
-      data: fundAfterFee,
-      borderWidth: 1,
-      tension: 0.1,
-      borderColor: palette[datasets.length % palette.length],
-      backgroundColor: 'rgba(0,0,0,0)',
-      spanGaps: true,
-      pointRadius: 0.5,
-      pointHoverRadius: 0.5,
-      borderDash: [4, 4]
-    });
-  }
-
-  const ctx = document.getElementById('fundChart').getContext('2d');
-  if (fundChart) fundChart.destroy();
-  fundChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { title: { display: true, text: 'Date' } },
-        y: {
-          title: { display: true, text: 'Return since start (%)' },
-          ticks: { callback: v => v.toFixed(1) + '%' }
-        }
-      },
-      plugins: {
-        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
-        legend: { display: true, position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
-          }
-        }
-      }
-    }
-  });
-}
-
-
-
+/** Render dropdown checkboxes */
 function renderSeriesControls() {
   const container = document.getElementById('seriesControls');
-  if (!container) {
-    console.error("renderSeriesControls: #seriesControls not found");
-    return;
-  }
+  if (!container) return;
 
-  const allSeries = [...seriesNames, EXTRA_SERIES_KEY];
-
-  // Initialize (first time: select everything)
-  if (selectedSeries.size === 0) {
-    allSeries.forEach(s => selectedSeries.add(s));
-  }
-
+  const allSeries = [...seriesNames];
   container.innerHTML = '';
+
   allSeries.forEach((name, idx) => {
     const id = `series-${idx}`;
     const row = document.createElement('div');
@@ -404,148 +197,159 @@ function renderSeriesControls() {
     container.appendChild(row);
   });
 
+  // "Select all / none" buttons
   const btnAll  = document.getElementById('seriesSelectAll');
   const btnNone = document.getElementById('seriesSelectNone');
-  if (btnAll) {
-    btnAll.onclick = (e) => {
-      e.preventDefault();
-      selectedSeries = new Set(allSeries);
-      renderSeriesControls();
-      updateChart();
-    };
-  }
-  if (btnNone) {
-    btnNone.onclick = (e) => {
-      e.preventDefault();
-      selectedSeries.clear();
-      renderSeriesControls();
-      updateChart();
-    };
-  }
+  if (btnAll) btnAll.onclick = () => { selectedSeries = new Set(allSeries); renderSeriesControls(); updateChart(); };
+  if (btnNone) btnNone.onclick = () => { selectedSeries.clear(); renderSeriesControls(); updateChart(); };
 }
 
+/** Draw chart from fundPayload */
+function updateChart() {
+  if (!fundPayload || !Array.isArray(fundPayload.dates)) return;
 
+  const labels = fundPayload.dates;
+  const datasets = [];
+  const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-['startDate','endDate'].forEach(id =>
-  document.getElementById(id).addEventListener('change', updateChart)
-);
-document.getElementById('updateChart').addEventListener('click', updateChart);
-window.addEventListener('load', loadCSVData);
-
-document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.getElementById('seriesToggle');
-  if (toggle) {
-    toggle.addEventListener('shown.bs.dropdown', () => {
-      renderSeriesControls(); // keep the list in sync
+  seriesNames.forEach((name, i) => {
+    if (!selectedSeries.has(name)) return;
+    const arr = (fundPayload.series && fundPayload.series[name]) || [];
+    datasets.push({
+      label: name,
+      data: arr.map(v => (v == null ? null : v * 100)),  // backend returns decimals → chart shows %
+      borderWidth: 0.8,
+      tension: 0.1,
+      borderColor: palette[datasets.length % palette.length],
+      backgroundColor: 'rgba(0,0,0,0)',
+      spanGaps: true,
+      pointRadius: 0.6,
+      pointHoverRadius: 1
     });
-  }
+  });
+
+  const ctx = document.getElementById('fundChart').getContext('2d');
+  if (fundChart) fundChart.destroy();
+  fundChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: 'Date' } },
+        y: {
+          title: { display: true, text: 'Return since start (%)' },
+          ticks: { callback: v => (v ?? 0).toFixed(1) + '%' }
+        }
+      },
+      plugins: {
+        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
+        legend: { display: true, position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
+          }
+        }
+      }
+    }
+  });
+}
+
+/** Initial load + event bindings */
+document.addEventListener('DOMContentLoaded', async () => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  // First load full range (backend will default start if not given)
+  await loadFundSeries("2020-10-17", todayStr);
+
+  // Prefill inputs
+  document.getElementById("startDate").value = "2020-10-17";
+  document.getElementById("endDate").value   = todayStr;
+
+  updateChart();
+
+  // Bind "Update" button
+  document.getElementById('updateChart').addEventListener('click', async () => {
+    const startStr = document.getElementById('startDate').value;
+    const endStr   = document.getElementById('endDate').value;
+    if (!startStr || !endStr) {
+      alert("Please pick both start and end dates");
+      return;
+    }
+    await loadFundSeries(startStr, endStr);
+    updateChart();
+  });
 });
 
 
-
-
-
 </script>
+
+<script>
+async function loadFundMetrics() {
+  try {
+    const resp = await fetch("/api/public-fund-metrics", { cache: "no-store" });
+    if (!resp.ok) throw new Error(`API error ${resp.status}`);
+    const data = await resp.json();
+
+    // Format as %
+    const fmt = (v) => (v != null ? (v * 100).toFixed(2) + "%" : "—");
+
+    document.getElementById("ytdReturn").textContent = fmt(data.ytd_return);
+    document.getElementById("lockedInReturn").textContent = fmt(data.locked_in_return);
+  } catch (e) {
+    console.error("Failed to load metrics:", e);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", loadFundMetrics);
+</script>
+
+
+
+
+
+
+
+
+
 
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const compTextCollapse   = document.getElementById('secondRowCollapse');
-  const compChartCollapse  = document.getElementById('compChartCollapse');
-  const compCanvas         = document.getElementById('compensationChart');
-  let compChart = null;
-  let chartLoaded = false;
+  const compCanvas = document.getElementById('compensationChart');
+  const compChartCollapse = document.getElementById('compChartCollapse');
 
-  compTextCollapse.addEventListener('shown.bs.collapse', async () => {
-    const chartInst = bootstrap.Collapse.getOrCreateInstance(compChartCollapse, { toggle: false });
-    chartInst.show();
+  compChartCollapse.addEventListener('shown.bs.collapse', async () => {
+    if (compCanvas.dataset.loaded) return; // only load once
+    try {
+      const resp = await fetch("/api/public-compensation-chart", { cache: "no-store" });
+      const payload = await resp.json();
 
-    if (!chartLoaded) {
-      try {
-        const resp = await fetch('{{ url_for("static", filename="compensation.csv") }}', { cache: 'no-store' });
-        const text = await resp.text();
-        const rows = text.trim().split(/\r?\n/).map(r => r.split(','));
+      const labels = payload.Ret.map(v => v.toFixed(0) + "%");
+      const investorReturn = payload.Investor;
+      const fundFee = payload.Fund;
 
-        const labels         = rows.slice(1).map(r => r[0]);          // First col = total return label (we'll just use it for x-axis labels)
-        const investorReturn = rows.slice(1).map(r => parseFloat(r[1])); // Col 2 = investor return
-        const fundFee        = rows.slice(1).map(r => parseFloat(r[2])); // Col 3 = management fee
-
-        compChart = new Chart(compCanvas.getContext('2d'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [
-              { 
-                label: 'Investor Return', 
-                data: investorReturn, 
-                backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                stack: 'combined'
-              },
-              { 
-                label: 'Fund Fee', 
-                data: fundFee, 
-                backgroundColor: 'rgba(255, 159, 64, 0.7)',
-                stack: 'combined'
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: { stacked: true ,
-                title: { display: true, text: 'Total Return' }  // <-- Added here
-              },
-              y: { 
-                stacked: true,
-                beginAtZero: true,
-                ticks: { callback: v => v + '%' }
-              }
-            },
-            plugins: {
-              legend: { position: 'top' },
-              title: { display: true, text: 'Compensation vs Investor Return (Stacked)' },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    return `${context.dataset.label}: ${context.parsed.y}%`;
-                  }
-                }
-              }
-            }
-          }
-        });
-
-        chartLoaded = true;
-      } catch (e) {
-        console.error('Failed to load compensation.csv', e);
-      }
-    } else if (compChart) {
-      compChart.resize();
-    }
-  });
-
-  compTextCollapse.addEventListener('hide.bs.collapse', () => {
-    const chartInst = bootstrap.Collapse.getOrCreateInstance(compChartCollapse, { toggle: false });
-    chartInst.hide();
+      new Chart(compCanvas.getContext('2d'), {
+        type: 'bar',
+        data: { labels,
+          datasets: [
+            { label: 'Investor Return', data: investorReturn,
+              backgroundColor: 'rgba(54, 162, 235, 0.7)', stack: 'combined' },
+            { label: 'Fund Fee', data: fundFee,
+              backgroundColor: 'rgba(255, 159, 64, 0.7)', stack: 'combined' }
+          ]},
+        options: { responsive: true, maintainAspectRatio: false,
+          scales: { x: { stacked:true, title:{display:true,text:'Total Return'} },
+                    y: { stacked:true, beginAtZero:true, ticks:{callback:v=>v+'%'} } },
+          plugins: { legend:{position:'top'},
+            title:{display:true,text:'Compensation vs Investor Return (Stacked)'} }
+        }
+      });
+      compCanvas.dataset.loaded = "true";
+    } catch(e) { console.error("Comp chart failed", e); }
   });
 });
 </script>
-
 {% endblock %}

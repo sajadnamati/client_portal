@@ -9,8 +9,9 @@ from analysis_functions import compute_rebased_indices  # import the function ab
 import numpy as np
 import math
 from analysis_functions import compute_lockedin_projection
-
+import pandas as pd
 from analysis_functions import compensation_chart_data
+from analysis_functions import performance_metric_public
 
 # Base directory = the folder where app.py is located
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -264,6 +265,77 @@ def api_compensation_chart():
     }
     return jsonify(payload)
 
+
+@app.get("/api/public-fund-series")
+def api_public_fund_series():
+    csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    print("📂 Using CSV path:", csv_path)
+
+    start = request.args.get("start")
+    end   = request.args.get("end")
+    print("📅 Query args:", start, end)
+
+    if not start:
+        start = "2020-10-17"
+    if not end:
+        end = datetime.now().strftime("%Y-%m-%d")
+
+    payload = compute_rebased_indices(
+        csv_path=csv_path,
+        start_date=start,
+        end_date=end,
+        fixed=0.02,    # or whatever your defaults are
+        hurdle=0.50,
+        perf_fee=0.25
+    )
+
+    print("✅ Payload keys:", payload.keys())
+    print("📊 Dates count:", len(payload.get("dates", [])))
+    if "series" in payload:
+        for k, v in payload["series"].items():
+            print(f"  Series {k}: {len(v)} points")
+        payload["series_names"] = list(payload["series"].keys())  # <-- add this
+    return jsonify(_clean_for_json(payload))
+
+
+@app.get("/api/public-fund-metrics")
+def api_public_fund_metrics():
+    csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    try:
+        metrics = performance_metric_public(csv_path)
+        payload = {
+            "ytd_return": metrics.get("ytd_return"),
+            "locked_in_return": metrics.get("locked_in_return"),
+        }
+    except Exception as e:
+        print("⚠️ Metrics calculation failed:", e)
+        payload = {"ytd_return": None, "locked_in_return": None}
+    return jsonify(payload)
+
+
+
+
+
+
+@app.get("/api/public-compensation-chart")
+def api_public_compensation_chart():
+    # Default fee parameters (public info)
+    hurdle = 0.50    # 50% hurdle
+    mgmt   = 0.02    # 2% mgmt fee
+    perf   = 0.25    # 25% perf fee
+
+    df = compensation_chart_data(
+        hurdle_rate=hurdle,
+        mgmt_fee=mgmt,
+        perf_fee=perf
+    )
+
+    payload = {
+        "Ret": (df["Ret"] * 100).tolist(),
+        "Investor": (df["Investor"] * 100).tolist(),
+        "Fund": (df["Fund"] * 100).tolist()
+    }
+    return jsonify(payload)
 
 
 

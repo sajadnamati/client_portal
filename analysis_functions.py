@@ -7,6 +7,9 @@ from scipy.optimize import newton
 import os
 from datetime import datetime
 import math
+import pandas as pd
+from datetime import datetime
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # --- XIRR function ---
@@ -332,9 +335,7 @@ def compute_lockedin_projection(current_nav: float,
     """
     Simple projection using already-computed locked-in after-fee return (annualized).
     """
-    import pandas as pd
-    from datetime import datetime
-
+    
     today = datetime.today().date()
     months = int(round(years * 12))
     monthly_rate = (1 + locked_in_after_fee) ** (1/12) - 1
@@ -350,10 +351,6 @@ def compute_lockedin_projection(current_nav: float,
         "locked_in_after_fee": locked_in_after_fee
     }
 
-
-
-import numpy as np
-import pandas as pd
 
 def compensation_chart_data(hurdle_rate=0.05, mgmt_fee=0.02, perf_fee=0.2, step=0.01):
     """
@@ -396,3 +393,56 @@ def compensation_chart_data(hurdle_rate=0.05, mgmt_fee=0.02, perf_fee=0.2, step=
         "Investor": investor,
         "Fund": fund
     })
+
+
+
+def performance_metric_public(csv_path: str):
+    """
+    Compute public fund performance metrics:
+      - YTD Fund Return (before fees)
+      - Locked-in return (projection from current to last available forward date)
+
+    Returns:
+        dict with {"ytd_return": float, "locked_in_return": float}
+    """
+
+    df = pd.read_csv(csv_path)
+    # Normalize date column
+    if "Date" not in df.columns:
+        raise ValueError("CSV must contain a 'Date' column")
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.sort_values("Date")
+
+    if "Fund" not in df.columns:
+        raise ValueError("CSV must contain a 'Fund' column with cumulative returns")
+
+    today = pd.Timestamp(datetime.today().date())
+
+    # Split history vs projections
+    df_hist = df[df["Date"] <= today]
+    df_fut  = df[df["Date"] > today]
+
+    if df_hist.empty:
+        return {"ytd_return": None, "locked_in_return": None}
+
+    # Current point (last available before today)
+    ret_current = df_hist["Fund"].iloc[-1]
+    date_begin  = df_hist["Date"].iloc[0]
+
+    # --- YTD Return ---
+    T_hist = (today - date_begin).days
+    ytd_return = ((1 + ret_current) / (1 + df_hist["Fund"].iloc[0]))**(365 / T_hist) - 1 if T_hist > 0 else None
+
+    # --- Locked-in return ---
+    if not df_fut.empty:
+        ret_future = df_fut["Fund"].iloc[-1]
+        date_future = df_fut["Date"].iloc[-1]
+        T_future = (date_future - today).days
+        locked_in = ((1 + ret_future) / (1 + ret_current))**(365 / T_future) - 1 if T_future > 0 else None
+    else:
+        locked_in = None
+
+    return {
+        "ytd_return": ytd_return,
+        "locked_in_return": locked_in
+    }
