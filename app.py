@@ -8,6 +8,10 @@ from flask import jsonify, request
 from analysis_functions import compute_rebased_indices  # import the function above
 import numpy as np
 import math
+from analysis_functions import compute_lockedin_projection
+
+from analysis_functions import compensation_chart_data
+
 # Base directory = the folder where app.py is located
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -172,7 +176,8 @@ def api_fund_series():
 
     # Default handling if missing
     if not start:
-        start = "2024-10-01"   # or earliest possible
+        start = inv.get("Fiscal_year_start", "2024-10-01")
+        print (start)
     if not end:
         end = datetime.now().strftime("%Y-%m-%d")
 
@@ -186,11 +191,88 @@ def api_fund_series():
     )
 
     # attach fiscal year start into payload
-    
+    # attach fiscal year start into payload
+    payload["fiscal_year_start"] = inv.get("Fiscal_year_start")
     cleaned = _clean_for_json(payload)
     print("✅ Cleaned payload sample:", str(cleaned)[:300])  # show first 300 chars
 
     return jsonify(payload)
+
+
+@app.get("/api/fund-projection")
+def api_fund_projection():
+    if not session.get("user"):
+        return jsonify({"error": "unauthorized"}), 401
+
+    investor_email = session["user"].get("email")
+    json_path = os.path.join(BASE_DIR, "static", "investors.json")
+    with open(json_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    inv = cfg.get(investor_email, {})
+
+    fees = inv.get("fees", {})
+    fixed   = float(fees.get("management_fee", 0.02))
+    hurdle  = float(fees.get("hurdle_rate", 0.50))
+    perffee = float(fees.get("performance_fee", 0.25))
+
+    # current NAV + locked-in return from metrics
+    metrics = performance_metrics(investor_email, "static/investors.json")
+    current_nav = metrics.get("portfolio_value_nav", 1000.0)  # fallback
+    locked_in_after_fee = metrics.get("locked_in_after_fee", 0.0)      # already annualized
+
+    # new simpler projection
+    payload = compute_lockedin_projection(
+        current_nav=current_nav,
+        locked_in_after_fee=locked_in_after_fee,
+        years=1/4   # or however many years you want
+    )
+
+    return jsonify(payload)
+
+
+
+@app.get("/api/compensation-chart")
+def api_compensation_chart():
+    if not session.get("user"):
+        return jsonify({"error": "unauthorized"}), 401
+
+    investor_email = session["user"].get("email")
+
+    # 🔹 Load this investor’s fee parameters
+    json_path = os.path.join(BASE_DIR, "static", "investors.json")
+    with open(json_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    inv = cfg.get(investor_email, {})
+
+    fees   = inv.get("fees", {})
+    hurdle = float(fees.get("hurdle_rate", 0.50))    # fallback 50%
+    mgmt   = float(fees.get("management_fee", 0.02)) # fallback 2%
+    perf   = float(fees.get("performance_fee", 0.25))# fallback 25%
+
+    # 🔹 Compute series in Python
+    df = compensation_chart_data(
+        hurdle_rate=hurdle,
+        mgmt_fee=mgmt,
+        perf_fee=perf
+    )
+
+    # 🔹 Convert decimals → percent
+    payload = {
+        "Ret": (df["Ret"] * 100).tolist(),
+        "Investor": (df["Investor"] * 100).tolist(),
+        "Fund": (df["Fund"] * 100).tolist()
+    }
+    return jsonify(payload)
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)
 

@@ -151,7 +151,7 @@
     </div>
 
     <div class="chart-container">
-      
+      <h4>Compensation Chart</h4>
         <div class="chart-area" style="height:400px;">
           <canvas id="compensationChart"></canvas>
         </div>
@@ -181,8 +181,35 @@
     </div>
 
     <div class="chart-container">
+      <h4>Your Contributions Chart</h4>
       <div class="chart-area" style="height:320px;">
         <canvas id="cashFlowChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <!--Thirs row: Projection -->
+  <div class="fund-wrapper">
+    <div class="fund-info">
+      <h4 class="fw-bold mb-3">Forward Curve Trading Projection</h4>
+      
+        <p class="text-muted text-justify mt-3">
+          As a forward-curve trading fund, our core strategy is implemented through calendar spreads. 
+          This approach does not rely on outright directional bets on commodity prices, but rather on the
+           relative value between different maturities along the curve. Because spreads tend to mean-revert
+            and exhibit more stable dynamics than flat price movements, the strategy allows us to project fund
+             performance with greater confidence. For investors, this means that your current account balance
+              is not static: it is expected to grow over time at the projected rate implied by existing forward
+               positions. While these projections are subject to market conditions and risk management adjustments,
+                they provide a transparent view of the growth trajectory to which your capital is currently exposed.<br><br>
+                The chart on the right illustrates how we expect your current account to evolve under the fund’s 
+                forward curve calendar spread strategy, shown net of all management and performance fees.
+        </p>
+    </div>
+
+    <div class="chart-container">
+      <h4>Projection Chart</h4>
+      <div class="chart-area" style="height:320px;">
+        <canvas id="ProjectionChart"></canvas>
       </div>
     </div>
   </div>
@@ -200,7 +227,7 @@ let seriesNames = [];
 const EXTRA_SERIES_KEY = "Fund (After Fee)";
 let selectedSeries = new Set();  // which series user wants visible
 let fundPayload; // was missing in your globals
-
+let projectionChart;
 /** Fetch rebased series from Python */
 async function loadFundSeries(startStr, endStr) {
   const url = `/api/fund-series?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`;
@@ -226,7 +253,7 @@ function renderSeriesControls() {
     return;
   }
 
-  const allSeries = [...seriesNames, EXTRA_SERIES_KEY];
+  const allSeries = [...seriesNames];
   console.log("renderSeriesControls: allSeries =", allSeries);
 
   // If nothing to show, render a placeholder so the menu isn't visually empty
@@ -349,15 +376,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadFundSeries("", todayStr);
 
   // Get fiscal start from payload, fallback = 6 months ago
-  let fiscalStart = (fundPayload && fundPayload.Fiscal_year_start) || null;
-  if (!fiscalStart) {
-    const fallback = new Date();
-    fallback.setMonth(today.getMonth() - 6);
-    fiscalStart = fallback.toISOString().split('T')[0];
-  }
+  let fiscalStart = fundPayload.fiscal_year_start;  // always use API value
 
   // Prefill inputs
-  document.getElementById("startDate").value = fiscalStart;
+  document.getElementById("startDate").value = fundPayload.fiscal_year_start;;
   document.getElementById("endDate").value   = todayStr;
 
   // Now reload properly with fiscal start → today
@@ -394,13 +416,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const compCanvas = document.getElementById('compensationChart');
   
   try {
-    const resp = await fetch('{{ url_for("static", filename="compensation.csv") }}', { cache: 'no-store' });
-    const text = await resp.text();
-    const rows = text.trim().split(/\r?\n/).map(r => r.split(','));
+    const resp = await fetch("/api/compensation-chart", { cache: "no-store" });
+    if (!resp.ok) throw new Error("Comp chart API error " + resp.status);
+    const payload = await resp.json();
 
-    const labels         = rows.slice(1).map(r => r[0]);          // First col = total return label
-    const investorReturn = rows.slice(1).map(r => parseFloat(r[1])); // Col 2 = investor return
-    const fundFee        = rows.slice(1).map(r => parseFloat(r[2])); // Col 3 = management fee
+    const labels = payload.Ret.map(v => v.toFixed(0) + "%");
+    const investorReturn = payload.Investor;
+    const fundFee = payload.Fund;
+
+    
 
     new Chart(compCanvas.getContext('2d'), {
       type: 'bar',
@@ -552,6 +576,69 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+});
+
+
+// Projection Chart
+async function loadLockedInProjection() {
+  const r = await fetch("/api/fund-projection", { cache: "no-store" });
+  if (!r.ok) throw new Error(`Projection API error ${r.status}`);
+  return await r.json();
+}
+
+function renderLockedInProjection(payload) {
+  const ctx = document.getElementById("ProjectionChart").getContext("2d");
+
+  const labels = payload.dates || [];
+  const values = (payload.series && payload.series["Projection (After Fee)"]) || [];
+
+  if (projectionChart) projectionChart.destroy();
+
+  projectionChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Projection (After Fee)",
+          data: values,
+          borderColor: "#0d6efd",
+          borderWidth: 2,
+          tension: 0.1,
+          pointRadius: 3,
+          pointBackgroundColor: "#0d6efd"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { title: { display: true, text: "Date" } },
+        y: {
+          title: { display: true, text: "Projected Account Value" },
+          ticks: { callback: v => v.toLocaleString() }
+        }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: `Locked-In Projection (Net After Fee, Annualized: ${(payload.locked_in_after_fee * 100).toFixed(1)}%)`
+        },
+        legend: { display: true, position: "top" }
+      }
+    }
+  });
+}
+
+// Auto-load on page load
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const projData = await loadLockedInProjection();
+    renderLockedInProjection(projData);
+  } catch (e) {
+    console.error("⚠️ Projection chart failed", e);
+  }
 });
 </script>
 {% endblock %}

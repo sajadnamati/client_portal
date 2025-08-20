@@ -154,7 +154,16 @@ def performance_metrics(email, json_file="investors.json"):
     # --- Locked-in return (today → last CSV date) ---
     T_locked = (date_future - today).days
     locked_in = ((1 + Ret_future) / (1 + Ret_today)) - 1
-    locked_in_return = (1 + locked_in) ** (365 / T_locked) - 1 if T_locked > 0 else None
+    if T_locked > 0:
+        gross_ann = (1 + locked_in) ** (365 / T_locked) - 1
+        hurdle_ann = H   # already annual rate from JSON
+        if gross_ann > hurdle_ann:
+            investor_share = max(hurdle_ann, (1 - Pf) * gross_ann)
+        else:
+            investor_share = gross_ann
+        locked_in_return = investor_share - Mg
+    else:
+        locked_in_return = None
 
     print(f"\nYTD return={ytd_return}, Locked-in return={locked_in_return}")
 
@@ -188,6 +197,8 @@ def performance_metrics(email, json_file="investors.json"):
         "irr": irr_value,
         "ytd_return": ytd_return,
         "locked_in_return": locked_in_return,
+        "locked_in_after_fee": locked_in_return,        # alias for projection API
+
         "cashflow_chart": cashflow_chart
     }
 
@@ -277,7 +288,7 @@ def compute_rebased_indices(
         return {"dates": [], "series_names": [], "series": {}}
 
     col1, col2, col3, col4 = df.columns[1:5]
-    names = ["Accumulated Return", "Bourse Index", "Gold Index", "Dollar Index"]
+    names = ["Fund (Before Fee)", "Bourse Index", "Gold Index", "Dollar Index"]
     rename_map = {col1: names[0], col2: names[1], col3: names[2], col4: names[3]}
     win = win.rename(columns=rename_map)
 
@@ -295,12 +306,17 @@ def compute_rebased_indices(
     h_T = (1.0 + hurdle) ** (T_days / 365.0) - 1.0         # time-scaled hurdle
 
     # Performance component rule
+    # Investor share rule: max(hurdle, (1 - perf_fee) * Ret) if Ret > hurdle
     Ret = rebased_fund
-    perf_comp = pd.Series(0.0, index=win.index)
+    investor_share = pd.Series(Ret, index=win.index)
     mask = (Ret > h_T)
-    perf_comp[mask] = pd.concat([h_T[mask], (perf_fee * Ret[mask])], axis=1).max(axis=1)
+    investor_share[mask] = pd.concat([
+        h_T[mask],
+        (1.0 - perf_fee) * Ret[mask]
+    ], axis=1).max(axis=1)
 
-    after_fee = (Ret - m_T - perf_comp).tolist()
+    after_fee = (investor_share - m_T).tolist()
+
     series["Fund (After Fee)"] = _sanitize_list(after_fee)
 
     return {
@@ -308,3 +324,75 @@ def compute_rebased_indices(
         "series_names": names + ["Fund (After Fee)"],
         "series": {k: _sanitize_list(v) for k, v in series.items()}
     }
+
+ 
+def compute_lockedin_projection(current_nav: float,
+                                locked_in_after_fee: float,
+                                years: float = 3):
+    """
+    Simple projection using already-computed locked-in after-fee return (annualized).
+    """
+    import pandas as pd
+    from datetime import datetime
+
+    today = datetime.today().date()
+    months = int(round(years * 12))
+    monthly_rate = (1 + locked_in_after_fee) ** (1/12) - 1
+
+    dates = pd.date_range(start=today, periods=months+1, freq="M").date
+    values = [current_nav * ((1 + monthly_rate) ** m) for m in range(months+1)]
+
+    return {
+        "dates": [d.isoformat() for d in dates],
+        "series": {
+            "Projection (After Fee)": _sanitize_list(values)
+        },
+        "locked_in_after_fee": locked_in_after_fee
+    }
+
+
+
+import numpy as np
+import pandas as pd
+
+def compensation_chart_data(hurdle_rate=0.05, mgmt_fee=0.02, perf_fee=0.2, step=0.01):
+    """
+    Generate investor share and fund fee series for returns from 0 to 150%.
+    
+    Parameters
+    ----------
+    hurdle_rate : float
+        Minimum return threshold (e.g., 0.05 for 5%)
+    mgmt_fee : float
+        Fixed management fee (e.g., 0.02 for 2%)
+    perf_fee : float
+        Performance fee fraction (e.g., 0.2 for 20%)
+    step : float
+        Step size for return increments (default = 0.01)
+    
+    Returns
+    -------
+    DataFrame with columns: Ret, Investor, Fund
+    """
+    # Return range from 0 to 150%
+    Ret = np.arange(0, 1.51 + step, step)
+
+    investor = []
+    fund = []
+
+    for r in Ret:
+        if r > hurdle_rate:
+            investor_share = max(hurdle_rate, (1 - perf_fee) * r) - mgmt_fee
+            fund_fee = mgmt_fee + (r - max(hurdle_rate, (1 - perf_fee) * r))
+        else:
+            investor_share = r - mgmt_fee
+            fund_fee = mgmt_fee
+        # Clamp at 0 if investor share goes negative
+        investor.append(max(investor_share, 0))
+        fund.append(max(fund_fee, 0))
+
+    return pd.DataFrame({
+        "Ret": Ret,
+        "Investor": investor,
+        "Fund": fund
+    })
