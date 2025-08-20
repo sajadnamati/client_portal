@@ -1,23 +1,46 @@
 {
   "investor@example.com": {
-    "name": "Arash Alavian",
-    "join_date": "2023-01-15",
-    "currency": "USD",
-    "performance_file": "investor-example-com-data.csv",
-    "transactions_file": "investor-example-com-transactions.csv",
+    "name": "Mr. Golestani",
+    "join_date": "2024-12-22",
+    "currency": "IRR",
+    "performance_file": "M_Golestani.csv",
+    "transactions_file": "M_Golestani.csv",
+    "hurdle_rate": 0.5,
+    "management_fee": 0.02,
+    "performance_fee": 0.25,
+    "Fiscal_year_start": "2024-12-22"
+  },
+  "sadjad.namati@gmail.com": {
+    "name": "Sajjad Namati",
+    "join_date": "2024-05-10",
+    "currency": "EUR",
+    "performance_file": "sadjad-namati-gmail-com-data.csv",
+    "transactions_file": "sadjad-namati-gmail-com-data.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
     "Fiscal_year_start": "2024-10-16"
   },
-  "another@example.com": {
-    "name": "Sajjad Namati",
-    "join_date": "2024-05-10",
-    "currency": "EUR",
-    "performance_file": "sadjad-namati-gmail-com-data.csv",
+  "arashalavian.gh@gmail.com": {
+    "name": "Arash Alavian",
+    "join_date": "2024-10-16",
+    "currency": "IRR",
+    "performance_file": "arashalavian-gh-gmail-com-data.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
     "Fiscal_year_start": "2024-10-16"
+  },
+  "sajjadnoun@gmail.com": {
+    "name": "Mr. Golestani",
+    "join_date": "2024-12-22",
+    "currency": "IRR",
+    "performance_file": "M_Golestani.csv",
+    "transactions_file": "M_Golestani.csv",
+    "hurdle_rate": 0.5,
+    "management_fee": 0.02,
+    "performance_fee": 0.25,
+    "Fiscal_year_start": "2024-12-22"
   }
 }
