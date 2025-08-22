@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")  # fallback for local
 
 # --- Toggle this for mock login ---
-MOCK_MODE = False  # True for local testing without Google OAuth
+MOCK_MODE = True  # True for local testing without Google OAuth
 
 oauth = OAuth(app)
 google = oauth.register(
@@ -66,6 +66,16 @@ def client_portal():
 
     # Look up current investor in the mapping
     investor_info = investors.get(investor_email, {})
+
+    # 🔍 Debugging output
+    print("▶ MOCK session user:", session.get("user"))
+    print("▶ Email for lookup:", investor_email)
+    print("▶ JSON keys:", list(investors.keys()))
+    print("▶ investor_info found:", investor_info)
+
+
+
+
 
     # Fallback values in case JSON is missing entries
     investor_name = investor_info.get("name", session["user"].get("name", "Investor"))
@@ -117,7 +127,7 @@ def login():
         # Mock login for local testing
         session["user"] = {
             "name": "Test Investor",
-            "email": "investor@example.com",
+            "email": "sajjadnoun@gmail.com",
             "picture": "https://via.placeholder.com/150"
         }
         return redirect(url_for(next_page))

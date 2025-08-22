@@ -45,7 +45,7 @@
               </span>
             </div>
             <div class="metric-item">
-              <span class="metric-label">Your Portfolio Value (NAV):</span>
+              <span class="metric-label">Your Portfolio Value (NAV) (After Fees):</span>
               <span class="metric-value">
                 {% if metrics.portfolio_value_nav %}
                   {{ "{:,.0f}".format(metrics.portfolio_value_nav) }} IRR
@@ -55,7 +55,7 @@
               </span>
             </div>
             <div class="metric-item">
-              <span class="metric-label">Annualized Return (IRR) of your Investment:</span>
+              <span class="metric-label">Annualized Return (IRR) (After Fees):</span>
               <span class="metric-value text-success">
                 {% if metrics.irr %}{{ (metrics.irr * 100) | round(2) }}%{% else %}—{% endif %}
               </span>

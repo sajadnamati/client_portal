@@ -50,7 +50,8 @@ def performance_metrics(email, json_file="investors.json"):
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"CSV not found: {csv_path}")
 
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, skip_blank_lines=True)
+    df = df.dropna(how="all")
     print("\nCSV columns:", df.columns.tolist())
     print("First 5 rows:\n", df.head())
 
@@ -167,6 +168,7 @@ def performance_metrics(email, json_file="investors.json"):
         locked_in_return = investor_share - Mg
     else:
         locked_in_return = None
+        print("DEBUG locked_in_after_fee:", date_future)
 
     print(f"\nYTD return={ytd_return}, Locked-in return={locked_in_return}")
 
