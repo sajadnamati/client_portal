@@ -9,6 +9,7 @@ from datetime import datetime
 import math
 import pandas as pd
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -194,11 +195,13 @@ def performance_metrics(email, json_file="investors.json"):
             "mgmt_fee": total_mgmt,
         }
     }
+    total_fees = total_mgmt + total_perf
 
     return {
         "portfolio_value_nav": portfolio_value_nav,
         "management_fees_total": total_mgmt,
         "performance_fees_total": total_perf,
+        "total_fees": total_fees, 
         "irr": irr_value,
         "ytd_return": ytd_return,
         "locked_in_return": locked_in_return,
@@ -296,6 +299,7 @@ def compute_rebased_indices(
     names = ["Fund (Before Fee)", "Bourse Index", "Gold Index", "Dollar Index"]
     rename_map = {col1: names[0], col2: names[1], col3: names[2], col4: names[3]}
     win = win.rename(columns=rename_map)
+    order = ["Fund (Before Fee)", "Bourse Index", "Gold Index", "Dollar Index", "Fund (After Fee)"]
 
     # Rebase the 4 indices
     series = {}
@@ -323,11 +327,13 @@ def compute_rebased_indices(
     after_fee = (investor_share - m_T).tolist()
 
     series["Fund (After Fee)"] = _sanitize_list(after_fee)
+    series_matrix = [series[k] for k in order]
 
     return {
         "dates": win['Date'].dt.strftime('%Y-%m-%d').tolist(),
-        "series_names": names + ["Fund (After Fee)"],
-        "series": {k: _sanitize_list(v) for k, v in series.items()}
+        "series_names": order,                # ← labels and
+        "series": series,                     # (kept for backwards-compat)
+        "series_matrix": series_matrix        # ← data are built from same list
     }
 
  
@@ -342,7 +348,31 @@ def compute_lockedin_projection(current_nav: float,
     months = int(round(years * 12))
     monthly_rate = (1 + locked_in_after_fee) ** (1/12) - 1
 
-    dates = pd.date_range(start=today, periods=months+1, freq="M").date
+    dates = [today + relativedelta(months=m) for m in range(months+1)]
+    values = [current_nav * ((1 + monthly_rate) ** m) for m in range(months+1)]
+
+    return {
+        "dates": [d.isoformat() for d in dates],
+        "series": {
+            "Projection (After Fee)": _sanitize_list(values)
+        },
+        "locked_in_after_fee": locked_in_after_fee
+    }
+
+
+ 
+def compute_lockedin_projection(current_nav: float,
+                                locked_in_after_fee: float,
+                                years: float = 3):
+    """
+    Simple projection using already-computed locked-in after-fee return (annualized).
+    """
+    
+    today = datetime.today().date()
+    months = int(round(years * 12))
+    monthly_rate = (1 + locked_in_after_fee) ** (1/12) - 1
+
+    dates = [today + relativedelta(months=m) for m in range(months+1)]
     values = [current_nav * ((1 + monthly_rate) ** m) for m in range(months+1)]
 
     return {

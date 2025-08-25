@@ -214,10 +214,11 @@ function updateChart() {
 
   seriesNames.forEach((name, i) => {
     if (!selectedSeries.has(name)) return;
-    const arr = (fundPayload.series && fundPayload.series[name]) || [];
+    const matrix = fundPayload.series_matrix || [];
+    const arr = Array.isArray(matrix[i]) ? matrix[i] : [];
     datasets.push({
       label: name,
-      data: arr.map(v => (v == null ? null : v * 100)),  // backend returns decimals → chart shows %
+      data: arr.map(v => (v == null ? null : v * 100)),
       borderWidth: 0.8,
       tension: 0.1,
       borderColor: palette[datasets.length % palette.length],

@@ -66,6 +66,25 @@
                 {% if metrics.locked_in_return %}{{ (metrics.locked_in_return * 100) | round(2) }}%{% else %}—{% endif %}
               </span>
             </div>
+            <div class="metric-item d-flex flex-wrap align-items-center">
+              <span class="metric-label small text-muted me-2">Fees*:</span>
+              <span class="small text-muted me-3">
+                Fixed: {% if metrics.management_fees_total is not none %}
+                  {{ "{:,.0f}".format(metrics.management_fees_total) }} IRR
+                {% else %}—{% endif %}
+              </span>
+              <span class="small text-muted me-3">
+                Perf: {% if metrics.performance_fees_total is not none %}
+                  {{ "{:,.0f}".format(metrics.performance_fees_total) }} IRR
+                {% else %}—{% endif %}
+              </span>
+              <span class="small text-muted">
+                Total: {% if metrics.total_fees is not none %}
+                  {{ "{:,.0f}".format(metrics.total_fees) }} IRR
+                {% else %}—{% endif %}
+              </span>
+            </div>
+            
           </div>
 
       </div>
@@ -314,10 +333,11 @@ function updateChart() {
 
   seriesNames.forEach((name, i) => {
     if (!selectedSeries.has(name)) return;
-    const arr = (fundPayload.series && fundPayload.series[name]) || [];
+    const matrix = fundPayload.series_matrix || [];
+    const arr = Array.isArray(matrix[i]) ? matrix[i] : [];
     datasets.push({
       label: name,
-      data: arr.map(v => (v == null ? null : v * 100)),  // Python returns decimals; chart shows %
+      data: arr.map(v => (v == null ? null : v * 100)),
       borderWidth: 0.8,
       tension: 0.1,
       borderColor: palette[datasets.length % palette.length],
