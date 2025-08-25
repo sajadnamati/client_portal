@@ -11,11 +11,11 @@
     "Fiscal_year_start": "2024-12-22"
   },
   "sadjad.namati@gmail.com": {
-    "name": "Sajjad Namati",
-    "join_date": "2024-05-10",
-    "currency": "EUR",
-    "performance_file": "sadjad-namati-gmail-com-data.csv",
-    "transactions_file": "sadjad-namati-gmail-com-data.csv",
+    "name": "Arash Alavian",
+    "join_date": "2024-10-16",
+    "currency": "IRR",
+    "performance_file": "arashalavian-gh-gmail-com-data.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
