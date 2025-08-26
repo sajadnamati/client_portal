@@ -14,8 +14,8 @@
     "name": "Arash Alavian",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "PYousefpoor.csv",
-    "transactions_file": "PYousefpoor.csv",
+    "performance_file": "arashalavian-gh-gmail-com-data.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
@@ -33,7 +33,7 @@
     "Fiscal_year_start": "2024-10-16"
   },
   "sajjadnoun@gmail.com": {
-    "name": "Ali Salim",
+    "name": "Mehdi Golestani",
     "join_date": "2024-10-16",
     "currency": "IRR",
     "performance_file": "MGolestani.csv",
@@ -64,5 +64,16 @@
     "management_fee": 0.02,
     "performance_fee": 0.25,
     "Fiscal_year_start": "2024-12-22"
+  },
+  "sadjad.neamati@gmail.com": {
+    "name": "Pirooz Yousefpoor",
+    "join_date": "2024-10-16",
+    "currency": "IRR",
+    "performance_file": "PYousefpoor.csv",
+    "transactions_file": "PYousefpoor.csv",
+    "hurdle_rate": 0.5,
+    "management_fee": 0.02,
+    "performance_fee": 0.25,
+    "Fiscal_year_start": "2024-10-16"
   }
 }
