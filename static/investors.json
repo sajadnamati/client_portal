@@ -69,7 +69,7 @@
     "name": "Dr. Ali Salim",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "P_Salim.csv",
+    "performance_file": "A_Salim.csv",
     "transactions_file": "_Salim.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
