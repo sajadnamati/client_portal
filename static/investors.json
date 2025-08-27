@@ -66,11 +66,11 @@
     "Fiscal_year_start": "2024-12-22"
   },
   "sadjad.neamati@gmail.com": {
-    "name": "Pirooz Yousefpoor",
+    "name": "Dr. Ali Salim",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "PYousefpoor.csv",
-    "transactions_file": "PYousefpoor.csv",
+    "performance_file": "P_Salim.csv",
+    "transactions_file": "_Salim.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
