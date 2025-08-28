@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")  # fallback for local
 
 # --- Toggle this for mock login ---
-MOCK_MODE = False  # True for local testing without Google OAuth
+MOCK_MODE = True  # True for local testing without Google OAuth
 
 oauth = OAuth(app)
 google = oauth.register(
