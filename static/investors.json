@@ -67,14 +67,14 @@
   },
   "sadjad.neamati@gmail.com": {
     "name": "Mehdi Golestani",
-    "join_date": "2024-10-16",
+    "join_date": "2024-12-22",
     "currency": "IRR",
     "performance_file": "MGolestani.csv",
     "transactions_file": "MGolestani.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16"
+    "Fiscal_year_start": "2024-12-22"
   },
   "salim.ali13@gmail.com": {
     "name": "Dr. Ali Salim",
