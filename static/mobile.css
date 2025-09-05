@@ -238,7 +238,7 @@ img { max-width: 100%; height: auto; }   /* leave canvas alone */
 
 
 @media (max-width: 420px){
-  #fundChart { height: 220px !important; }
+  #fundChart { height: 100% !important; }
 }
 
 /* 3) Trim excess space around the chart area */
