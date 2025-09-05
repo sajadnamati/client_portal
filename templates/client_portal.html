@@ -93,41 +93,46 @@
     <!-- Right side: Interactive Chart -->
     <div class="chart-container">
       <h4>Performance Chart</h4>
+
+      <!-- Controls: stack on mobile, 3-up on desktop -->
       <div class="chart-controls mb-3">
-        <div class="row">
-          <div class="col-md-4">
+        <div class="row g-2">
+          <div class="col-12 col-md-4">
             <label for="startDate" class="form-label">Start Date:</label>
             <input type="date" id="startDate" class="form-control" />
           </div>
-          <div class="col-md-4">
+
+          <div class="col-12 col-md-4">
             <label for="endDate" class="form-label">End Date:</label>
             <input type="date" id="endDate" class="form-control" />
           </div>
-          
-          <div class="col-md-4 d-flex align-items-end">
-          <button id="updateChart" class="btn btn-primary">Update</button>
 
-          <!-- Series dropdown, sits right beside Update -->
-          <div class="btn-group ms-2">
-          <button id="seriesToggle"
-                class="btn btn-outline-secondary dropdown-toggle"
-                data-bs-toggle="dropdown"
-                aria-expanded="false">
-            Indices
-          </button>
-            <div id="seriesMenu" class="dropdown-menu p-3" style="min-width: 260px; max-height: 300px; overflow:auto;">
-              <div class="d-flex justify-content-between mb-2">
-                <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
-                <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+          <div class="col-12 col-md-4 d-grid d-md-flex align-items-end">
+            <button id="updateChart" class="btn btn-primary">Update</button>
+
+            <!-- Series dropdown -->
+            <div class="btn-group mt-2 mt-md-0 ms-md-2">
+              <button id="seriesToggle"
+                      class="btn btn-outline-secondary dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false">
+                Indices
+              </button>
+              <div id="seriesMenu" class="dropdown-menu p-3" style="min-width: 260px; max-height: 300px; overflow:auto;">
+                <div class="d-flex justify-content-between mb-2">
+                  <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
+                  <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+                </div>
+                <div id="seriesControls"></div>
               </div>
-              <div id="seriesControls"></div>
             </div>
           </div>
         </div>
-        </div>
       </div>
-      <div class="chart-area">
-        <canvas id="fundChart"></canvas>
+
+      <!-- ✅ Give the chart a real height; canvas fills it -->
+      <div class="chart-area" id="perf-wrap" style="min-height:260px; height:500px; margin-bottom:0;">
+        <canvas id="fundChart" style="width:100%; height:100%; display:block;"></canvas>
       </div>
     </div>
   </div>

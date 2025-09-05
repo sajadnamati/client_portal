@@ -1,0 +1,264 @@
+/* ===========================
+   Mobile-only styles (≤576px)
+   =========================== */
+
+/* --- Base resets & comfort --- */
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+  overflow-x: hidden !important;          /* kills the stubborn right gap */
+  -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+}
+body { font-size: 1rem; line-height: 1.55; padding-bottom: env(safe-area-inset-bottom); }
+* { -webkit-tap-highlight-color: transparent; }
+input, select, textarea { font-size: 16px; }     /* prevent zoom-on-focus on mobile */
+img, canvas { max-width: 100%; height: auto; }
+.table { display: block; overflow-x: auto; white-space: nowrap; }
+.chart-wrap { position: relative; width: 100%; height: 240px; }
+
+/* Remove container gutters on phones */
+.wide-container { padding: 0 !important; margin: 0 !important; }
+
+/* --- Navbar (stacked & tappable) --- */
+.navbar { position: sticky; top: 0; z-index: 1030; background: #fff; border-bottom: 1px solid rgba(0,0,0,.06); }
+.navbar .collapse { display: block !important; }  /* you have no toggler in HTML */
+.navbar .navbar-nav.flex-row { flex-direction: column !important; align-items: flex-start; gap: .25rem; }
+.navbar .nav-link { padding: .5rem 0; min-height: 44px; display: flex; align-items: center; }
+.navbar-brand { max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- Full-bleed sections (no left/right margins) --- */
+.hero-section,
+.about-section {
+  width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* =================
+   HERO (single col)
+   ================= */
+.hero-section { padding-top: 12px; padding-bottom: 20px; }
+.hero-section .hero-container {
+  display: block !important;
+  width: 100% !important;
+  max-width: clamp(320px, 92vw, 560px) !important;  /* nice line length, centered */
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: center !important;
+  padding: 0 16px;
+}
+.hero-section h1,
+.hero-section .display-1,
+.hero-section .display-2,
+.hero-section .display-3,
+.hero-section .display-4,
+.hero-section .display-5 {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  margin-bottom: .5rem;
+}
+.hero-section p {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: .5rem 0 0 0;
+  text-align: justify !important;                /* requested: justified hero copy */
+  text-justify: inter-word;
+  hyphens: auto;
+}
+.hero-section .btn {
+  display: inline-block;
+  margin: 12px auto 0;
+  min-width: 220px;                               /* looks cleaner than 100% */
+  border-radius: .5rem;
+  padding: .6rem 1rem;
+}
+
+/* =======================
+   ABOUT (center + justify)
+   ======================= */
+.about-section { padding-top: 24px; padding-bottom: 24px; }
+.about-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;                 /* centers its children */
+}
+.about-text,
+.about-img {
+  width: 100% !important;
+  max-width: clamp(320px, 92vw, 560px) !important;
+  margin: 0 auto !important;
+  padding: 0 16px !important;
+}
+.about-text h2 { text-align: center; margin-bottom: .25rem; }
+.about-text p  {
+  font-size: 1rem;
+  line-height: 1.7;
+  text-align: justify !important;                 /* requested: justified body */
+  text-justify: inter-word;
+  hyphens: auto;
+  margin-top: .5rem;
+}
+.about-img { margin-top: 12px; }
+.about-img img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;                           /* consistent crop */
+  object-fit: cover;
+  border-radius: .375rem;
+}
+
+/* --- Utilities (optional) --- */
+.full-height { min-height: 100vh; min-height: 100dvh; }
+.hide-mobile { display: none !important; }
+
+
+/* === Final about centering (phones only) === */
+
+/* full-bleed section already set; now center its inner column */
+.about-section .about-wrapper{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;      /* horizontally center children */
+  justify-content: center !important;
+}
+
+.about-section .about-text,
+.about-section .about-img{
+  max-width: 560px !important;         /* pleasant column width */
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;       /* centers the column */
+  padding-left: 16px !important;       /* keep a small gutter inside */
+  padding-right: 16px !important;
+}
+
+.about-section .about-text h2{
+  text-align: center !important;
+}
+
+.about-section .about-text p{
+  text-align: justify !important;      /* keep your requested justification */
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+/* === About: kill stray left gap and recenter column (phones only) === */
+
+/* Full-bleed section already in place; remove any inherited left padding/margins */
+.about-section,
+.about-section .about-wrapper,
+.about-section .about-text {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  left: auto !important;                 /* neutralize any positional shifts */
+  position: static !important;           /* cancels relative/absolute left offsets */
+  float: none !important;                /* cancels desktop floats */
+}
+
+/* Center children horizontally with grid and set a symmetric inner width */
+.about-section .about-wrapper {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;      /* centers about-text and about-img */
+}
+
+/* The inner column: centered with equal side padding */
+.about-section .about-text,
+.about-section .about-img {
+  width: min(560px, 92vw) !important;    /* pleasant column width */
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 16px !important;         /* symmetric gutter */
+  padding-right: 16px !important;
+}
+
+/* Heading centered; paragraph justified (as requested) */
+.about-section .about-text h2 {
+  text-align: center !important;
+}
+.about-section .about-text p {
+  text-align: justify !important;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+/* === About: kill left gap and center column (mobile only) === */
+
+/* 1) No section-side gutters */
+.about-section { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+
+/* 2) Neutralize any desktop offsets/floats that push content right */
+.about-section .about-wrapper,
+.about-section .about-text,
+.about-section .about-img {
+  position: static !important;
+  left: auto !important;
+  float: none !important;
+  margin-left: 0 !important;   /* wipe stray left margins */
+  padding-left: 0 !important;  /* wipe stray left paddings */
+}
+
+/* 3) Center children and give symmetric inner padding */
+.about-section .about-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;     /* centers the blocks */
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.about-section .about-text,
+.about-section .about-img {
+  width: min(560px, 92vw) !important;  /* pleasant centered column */
+  margin: 0 auto !important;           /* <-- centers the column */
+  padding: 0 16px !important;          /* equal L/R gutter */
+}
+
+/* 4) Typographic alignment: centered title, justified body */
+.about-section .about-text h2 { text-align: center !important; }
+.about-section .about-text p  { text-align: justify !important; text-justify: inter-word; hyphens: auto; }
+.about-section .about-img img { display: block !important; width: 100% !important; height: auto !important; }
+
+/* === Client Portal: mobile fixes (≤576px) === */
+
+/* 1) Stack the two columns (text + chart) */
+.fund-wrapper { display: block !important; }
+.fund-wrapper .fund-info,
+.fund-wrapper .chart-container {
+  width: 100% !important;
+  margin: 0 auto 16px !important;
+  padding: 0 12px !important;
+}
+
+/* 2) Make the Performance Chart actually show on phones */
+#fundChart {
+  width: 100% !important;
+  height: 260px !important;   /* sensible mobile height */
+  display: block !important;
+}
+@media (max-width: 420px){
+  #fundChart { height: 220px !important; }
+}
+
+/* 3) Trim excess space around the chart area */
+.chart-container .chart-area { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+
+/* 4) Filters: stack full-width under the title */
+.chart-controls .row > [class^="col-"],
+.chart-controls .row > [class*=" col-"] {
+  flex: 0 0 100% !important;
+  max-width: 100% !important;
+}
+.chart-controls .btn,
+.chart-controls .dropdown,
+.chart-controls .btn-group,
+#seriesToggle {
+  width: 100% !important;
+  margin-top: .5rem !important;
+}
