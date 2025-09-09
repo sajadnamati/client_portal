@@ -97,6 +97,17 @@
     "management_fee": 0.02,
     "performance_fee": 0.25,
     "Fiscal_year_start": "2025-09-7"
+  },
+  "ahmadinasabnima@gmail.com": {
+    "name": "Mr. Nima Ahmadinasab",
+    "join_date": "2025-05-20",
+    "currency": "IRR",
+    "performance_file": "ahmadinasabnima.csv",
+    "transactions_file": "ahmadinasabnima.csv",
+    "hurdle_rate": 0.6,
+    "management_fee": 0.02,
+    "performance_fee": 0.25,
+    "Fiscal_year_start": "2025-05-20"
   }
 
 }
