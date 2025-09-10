@@ -175,8 +175,8 @@ def api_fund_series():
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
     inv = cfg.get(investor_email, {})
-    csv_path = os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
-
+    #csv_path = os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
+    csv_path = inv.get("link") or os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
     fees = inv.get("fees", {})
     fixed   = float(fees.get("management_fee", 0.02))
     hurdle  = float(fees.get("hurdle_rate", 0.50))
@@ -278,7 +278,8 @@ def api_compensation_chart():
 
 @app.get("/api/public-fund-series")
 def api_public_fund_series():
-    csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    #csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    csv_path="https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
     print("📂 Using CSV path:", csv_path)
 
     start = request.args.get("start")
@@ -310,7 +311,8 @@ def api_public_fund_series():
 
 @app.get("/api/public-fund-metrics")
 def api_public_fund_metrics():
-    csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    #csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
+    csv_path="https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
     try:
         metrics = performance_metric_public(csv_path)
         payload = {

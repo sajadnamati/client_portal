@@ -3,8 +3,8 @@
     "name": "Mr. Golestani",
     "join_date": "2024-12-22",
     "currency": "IRR",
-    "performance_file": "M_Golestani.csv",
-    "transactions_file": "M_Golestani.csv",
+    "performance_file": "M_Golestani2.csv",
+    "transactions_file": "M_Golestani2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
@@ -14,100 +14,109 @@
     "name": "Arash Alavian",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "arashalavian-gh-gmail-com-data.csv",
-    "transactions_file": "arashalavian-gh-gmail-com-data.csv",
+    "performance_file": "arashalavian-gh-gmail-com-data2.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2"
   },
   "arashalavian.gh@gmail.com": {
     "name": "Arash Alavian",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "arashalavian-gh-gmail-com-data.csv",
-    "transactions_file": "arashalavian-gh-gmail-com-data.csv",
+    "performance_file": "arashalavian-gh-gmail-com-data2.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2"
   },
   "sajjadnoun@gmail.com": {
-    "name": "Mr. Alireza Sepahsalari",
-    "join_date": "2025-09-7",
+    "name": "Mr. Ali Salim",
+    "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "sepahsalari_alireza.csv",
-    "transactions_file": "sepahsalari_alireza.csv",
+    "performance_file": "ahmadinasabnima2.csv",
+    "transactions_file": "ahmadinasabnima2.csv",
     "hurdle_rate": 0.6,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2025-09-7"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv5"
   },
   "pirooz4264@gmail.com": {
     "name": "Pirooz Yousefpoor",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "PYousefpoor.csv",
-    "transactions_file": "PYousefpoor.csv",
+    "performance_file": "PYousefpoor2.csv",
+    "transactions_file": "PYousefpoor2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv4"
   },
   "mgolestani33@gmail.com": {
     "name": "Mr. Mehdi Golestani",
     "join_date": "2024-12-22",
     "currency": "IRR",
-    "performance_file": "MGolestani.csv",
-    "transactions_file": "MGolestani.csv",
+    "performance_file": "MGolestani2.csv",
+    "transactions_file": "MGolestani2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-12-22"
+    "Fiscal_year_start": "2024-12-22",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv1"
   },
   "sadjad.neamati@gmail.com": {
     "name": "Mehdi Golestani",
     "join_date": "2024-12-22",
     "currency": "IRR",
-    "performance_file": "MGolestani.csv",
-    "transactions_file": "MGolestani.csv",
+    "performance_file": "MGolestani2.csv",
+    "transactions_file": "MGolestani2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-12-22"
+    "Fiscal_year_start": "2024-12-22",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv1"
   },
   "salim.ali13@gmail.com": {
     "name": "Dr. Ali Salim",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "A_Salim.csv",
-    "transactions_file": "A_Salim.csv",
+    "performance_file": "A_Salim2.csv",
+    "transactions_file": "A_Salim2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv5"
   },
   "sepahsalari.alireza@gmail.com": {
     "name": "Mr. Alireza Sepahsalari",
     "join_date": "2025-09-7",
     "currency": "IRR",
-    "performance_file": "sepahsalari_alireza.csv",
-    "transactions_file": "sepahsalari_alireza.csv",
+    "performance_file": "sepahsalari_alireza2.csv",
+    "transactions_file": "sepahsalari_alireza2.csv",
     "hurdle_rate": 0.6,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2025-09-7"
+    "Fiscal_year_start": "2025-09-7",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv3"
   },
   "ahmadinasabnima@gmail.com": {
     "name": "Mr. Nima Ahmadinasab",
     "join_date": "2025-05-20",
     "currency": "IRR",
-    "performance_file": "ahmadinasabnima.csv",
-    "transactions_file": "ahmadinasabnima.csv",
+    "performance_file": "ahmadinasabnima2.csv",
+    "transactions_file": "ahmadinasabnima2.csv",
     "hurdle_rate": 0.6,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2025-05-20"
+    "Fiscal_year_start": "2025-05-20",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv6"
   }
 
 }

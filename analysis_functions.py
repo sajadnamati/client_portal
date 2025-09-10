@@ -47,11 +47,18 @@ def performance_metrics(email, json_file="investors.json"):
     print(f"Hurdle={H}, MgmtFee={Mg}, PerfFee={Pf}")
 
     # Load CSV (resolve inside static/)
-    csv_path = os.path.join(BASE_DIR, "static", inv["performance_file"])
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"CSV not found: {csv_path}")
+    #csv_path = os.path.join(BASE_DIR, "static", inv["performance_file"])
+    #if not os.path.exists(csv_path):
+    #    raise FileNotFoundError(f"CSV not found: {csv_path}")
 
-    df = pd.read_csv(csv_path, skip_blank_lines=True)
+    #df = pd.read_csv(csv_path, skip_blank_lines=True)
+    
+    
+    df = _load_csv(inv)
+    
+    
+    
+    
     df = df.dropna(how="all")
     print("\nCSV columns:", df.columns.tolist())
     print("First 5 rows:\n", df.head())
@@ -478,3 +485,15 @@ def performance_metric_public(csv_path: str):
         "ytd_return": ytd_return,
         "locked_in_return": locked_in
     }
+
+
+def _load_csv(inv):
+    """Return a DataFrame from either a Google Sheets link or a local CSV file."""
+    if "link" in inv and inv["link"]:
+        print(f"🌐 Loading from Google Sheets: {inv['link']}")
+        df = pd.read_csv(inv["link"], skip_blank_lines=True)
+    else:
+        csv_path = os.path.join(BASE_DIR, "static", inv["performance_file"])
+        print(f"📂 Loading local CSV: {csv_path}")
+        df = pd.read_csv(csv_path, skip_blank_lines=True)
+    return df
