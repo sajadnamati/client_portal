@@ -1,26 +1,62 @@
+# app.py (patched)
+
 import os
-from flask import Flask, redirect, url_for, session, render_template, request
+from flask import Flask, redirect, url_for, session, render_template, request, jsonify
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
-from analysis_functions import performance_metrics
-import json
-from flask import jsonify, request
-from analysis_functions import compute_rebased_indices  # import the function above
+from werkzeug.middleware.proxy_fix import ProxyFix
+# (optional) server-side sessions are more robust behind VPNs/ad-blockers
+try:
+    from flask_session import Session
+    HAVE_FLASK_SESSION = True
+except Exception:
+    HAVE_FLASK_SESSION = False
+
+from analysis_functions import (
+    performance_metrics,
+    compute_rebased_indices,
+    compute_lockedin_projection,
+    compensation_chart_data,
+    performance_metric_public
+)
 import numpy as np
 import math
-from analysis_functions import compute_lockedin_projection
+import json
 import pandas as pd
-from analysis_functions import compensation_chart_data
-from analysis_functions import performance_metric_public
 
-# Base directory = the folder where app.py is located
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")  # fallback for local
+
+# ---- Security & proxy awareness
+# Use a stable secret in production; fail fast if missing on Render
+if os.environ.get("RENDER"):
+    app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]  # must be set in Render env
+else:
+    # local/dev fallback only
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev_secret_key")
+
+# Cookies that survive Google redirect; HTTPS only on Render
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',  # 'Lax' is correct for top-level OAuth redirects
+    PREFERRED_URL_SCHEME='https',
+)
+
+# Trust Render's proxy headers so url_for builds https:// and correct host
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# (optional) Server-side sessions (recommended if VPN causes random cookie drops)
+if HAVE_FLASK_SESSION:
+    app.config.update(
+        SESSION_TYPE=os.environ.get("SESSION_TYPE", "filesystem"),
+        SESSION_PERMANENT=False,
+    )
+    Session(app)
 
 # --- Toggle this for mock login ---
-MOCK_MODE = False  # True for local testing without Google OAuth
+MOCK_MODE = False
 
 oauth = OAuth(app)
 google = oauth.register(
@@ -29,14 +65,12 @@ google = oauth.register(
     client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
     api_base_url='https://www.googleapis.com/oauth2/v2/',
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'}    
+    client_kwargs={'scope': 'openid email profile'}
 )
 
-# --- Context processor: make 'user' available in all templates ---
 @app.context_processor
 def inject_user():
-    return dict(user=session.get("user"))    
-
+    return dict(user=session.get("user"))
 
 # --- Routes ---
 @app.route("/")
@@ -49,14 +83,11 @@ def fund():
 
 @app.route("/client-portal")
 def client_portal():
-    # If not logged in, go to login and then return here
     if not session.get("user"):
         return redirect(url_for("login", next="client_portal"))
-    
-    # Extract the email from the session (assuming your login sets it there)
+
     investor_email = session["user"].get("email")
 
-    # Load investor metadata from JSON
     try:
         json_path = os.path.join(BASE_DIR, "static", "investors.json")
         with open(json_path, "r", encoding="utf-8") as f:
@@ -64,20 +95,9 @@ def client_portal():
     except FileNotFoundError:
         investors = {}
 
-    # Look up current investor in the mapping
     investor_info = investors.get(investor_email, {})
 
-    # 🔍 Debugging output
-    print("▶ MOCK session user:", session.get("user"))
-    print("▶ Email for lookup:", investor_email)
-    print("▶ JSON keys:", list(investors.keys()))
-    print("▶ investor_info found:", investor_info)
-
-
-
-
-
-    # Fallback values in case JSON is missing entries
+    # Fallbacks
     investor_name = investor_info.get("name", session["user"].get("name", "Investor"))
     performance_file = investor_info.get(
         "performance_file",
@@ -86,7 +106,6 @@ def client_portal():
     join_date = investor_info.get("join_date", None)
     currency = investor_info.get("currency", "USD")
 
-     # Compute performance metrics for this investor
     try:
         metrics = performance_metrics(investor_email, "static/investors.json")
     except Exception as e:
@@ -100,9 +119,6 @@ def client_portal():
             "locked_in_return": None
         }
 
-
-
-
     return render_template(
         "client_portal.html",
         year=datetime.now().year,
@@ -113,18 +129,14 @@ def client_portal():
         currency=currency,
         metrics=metrics,
         cf_data=metrics.get("cashflow_chart")
-        
     )
-
 
 @app.route("/login")
 def login():
-    # Store where the user was trying to go
     next_page = request.args.get("next", "homepage")
     session["next_page"] = next_page
-    
+
     if MOCK_MODE:
-        # Mock login for local testing
         session["user"] = {
             "name": "Test Investor",
             "email": "sajjadnoun@gmail.com",
@@ -132,17 +144,21 @@ def login():
         }
         return redirect(url_for(next_page))
     else:
-        redirect_uri = url_for('authorize', _external=True)
+        # Build an HTTPS redirect_uri on the current host
+        redirect_uri = url_for('authorize', _external=True, _scheme='https')
         return google.authorize_redirect(redirect_uri)
 
 @app.route("/authorize")
 def authorize():
-    token = google.authorize_access_token()
+    # Graceful auto-retry if state/cookie got dropped (VPN, double-click, etc.)
+    try:
+        token = google.authorize_access_token()
+    except Exception as e:
+        print("⚠️ authorize_access_token failed:", repr(e))
+        return redirect(url_for('login'))
     resp = google.get('userinfo')
     user_info = resp.json()
     session['user'] = user_info
-
-    # After login, go to the page user intended
     next_page = session.pop("next_page", "homepage")
     return redirect(url_for(next_page))
 
@@ -170,27 +186,18 @@ def api_fund_series():
         return jsonify({"error": "unauthorized"}), 401
 
     investor_email = session["user"].get("email")
-    # locate the investor CSV + fee params from your existing JSON map
     json_path = os.path.join(BASE_DIR, "static", "investors.json")
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
     inv = cfg.get(investor_email, {})
-    #csv_path = os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
     csv_path = inv.get("link") or os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
     fees = inv.get("fees", {})
     fixed   = float(fees.get("management_fee", 0.02))
     hurdle  = float(fees.get("hurdle_rate", 0.50))
     perffee = float(fees.get("performance_fee", 0.25))
 
-    start = request.args.get("start")
-    end   = request.args.get("end")
-
-    # Default handling if missing
-    if not start:
-        start = inv.get("Fiscal_year_start", "2024-10-01")
-        print (start)
-    if not end:
-        end = datetime.now().strftime("%Y-%m-%d")
+    start = request.args.get("start") or inv.get("Fiscal_year_start", "2024-10-01")
+    end   = request.args.get("end") or datetime.now().strftime("%Y-%m-%d")
 
     payload = compute_rebased_indices(
         csv_path=csv_path,
@@ -200,15 +207,8 @@ def api_fund_series():
         hurdle=hurdle,
         perf_fee=perffee
     )
-
-    # attach fiscal year start into payload
-    # attach fiscal year start into payload
     payload["fiscal_year_start"] = inv.get("Fiscal_year_start")
-    cleaned = _clean_for_json(payload)
-    print("✅ Cleaned payload sample:", str(cleaned)[:300])  # show first 300 chars
-
-    return jsonify(payload)
-
+    return jsonify(_clean_for_json(payload))
 
 @app.get("/api/fund-projection")
 def api_fund_projection():
@@ -226,21 +226,16 @@ def api_fund_projection():
     hurdle  = float(fees.get("hurdle_rate", 0.50))
     perffee = float(fees.get("performance_fee", 0.25))
 
-    # current NAV + locked-in return from metrics
     metrics = performance_metrics(investor_email, "static/investors.json")
-    current_nav = metrics.get("portfolio_value_nav", 1000.0)  # fallback
-    locked_in_after_fee = metrics.get("locked_in_after_fee", 0.0)      # already annualized
+    current_nav = metrics.get("portfolio_value_nav", 1000.0)
+    locked_in_after_fee = metrics.get("locked_in_after_fee", 0.0)
 
-    # new simpler projection
     payload = compute_lockedin_projection(
         current_nav=current_nav,
         locked_in_after_fee=locked_in_after_fee,
-        years=1/4   # or however many years you want
+        years=1/4
     )
-
     return jsonify(payload)
-
-
 
 @app.get("/api/compensation-chart")
 def api_compensation_chart():
@@ -248,26 +243,17 @@ def api_compensation_chart():
         return jsonify({"error": "unauthorized"}), 401
 
     investor_email = session["user"].get("email")
-
-    # 🔹 Load this investor’s fee parameters
     json_path = os.path.join(BASE_DIR, "static", "investors.json")
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
     inv = cfg.get(investor_email, {})
 
     fees   = inv.get("fees", {})
-    hurdle = float(fees.get("hurdle_rate", 0.50))    # fallback 50%
-    mgmt   = float(fees.get("management_fee", 0.02)) # fallback 2%
-    perf   = float(fees.get("performance_fee", 0.25))# fallback 25%
+    hurdle = float(fees.get("hurdle_rate", 0.50))
+    mgmt   = float(fees.get("management_fee", 0.02))
+    perf   = float(fees.get("performance_fee", 0.25))
 
-    # 🔹 Compute series in Python
-    df = compensation_chart_data(
-        hurdle_rate=hurdle,
-        mgmt_fee=mgmt,
-        perf_fee=perf
-    )
-
-    # 🔹 Convert decimals → percent
+    df = compensation_chart_data(hurdle_rate=hurdle, mgmt_fee=mgmt, perf_fee=perf)
     payload = {
         "Ret": (df["Ret"] * 100).tolist(),
         "Investor": (df["Investor"] * 100).tolist(),
@@ -275,44 +261,26 @@ def api_compensation_chart():
     }
     return jsonify(payload)
 
-
 @app.get("/api/public-fund-series")
 def api_public_fund_series():
-    #csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
-    csv_path="https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
-    print("📂 Using CSV path:", csv_path)
-
-    start = request.args.get("start")
-    end   = request.args.get("end")
-    print("📅 Query args:", start, end)
-
-    if not start:
-        start = "2020-10-17"
-    if not end:
-        end = datetime.now().strftime("%Y-%m-%d")
-
+    csv_path = "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
+    start = request.args.get("start") or "2020-10-17"
+    end   = request.args.get("end") or datetime.now().strftime("%Y-%m-%d")
     payload = compute_rebased_indices(
         csv_path=csv_path,
         start_date=start,
         end_date=end,
-        fixed=0.02,    # or whatever your defaults are
+        fixed=0.02,
         hurdle=0.50,
         perf_fee=0.25
     )
-
-    print("✅ Payload keys:", payload.keys())
-    print("📊 Dates count:", len(payload.get("dates", [])))
     if "series" in payload:
-        for k, v in payload["series"].items():
-            print(f"  Series {k}: {len(v)} points")
-        payload["series_names"] = list(payload["series"].keys())  # <-- add this
+        payload["series_names"] = list(payload["series"].keys())
     return jsonify(_clean_for_json(payload))
-
 
 @app.get("/api/public-fund-metrics")
 def api_public_fund_metrics():
-    #csv_path = os.path.join(BASE_DIR, "static", "fund-data.csv")
-    csv_path="https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
+    csv_path = "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv0"
     try:
         metrics = performance_metric_public(csv_path)
         payload = {
@@ -324,24 +292,9 @@ def api_public_fund_metrics():
         payload = {"ytd_return": None, "locked_in_return": None}
     return jsonify(payload)
 
-
-
-
-
-
 @app.get("/api/public-compensation-chart")
 def api_public_compensation_chart():
-    # Default fee parameters (public info)
-    hurdle = 0.50    # 50% hurdle
-    mgmt   = 0.02    # 2% mgmt fee
-    perf   = 0.25    # 25% perf fee
-
-    df = compensation_chart_data(
-        hurdle_rate=hurdle,
-        mgmt_fee=mgmt,
-        perf_fee=perf
-    )
-
+    df = compensation_chart_data(hurdle_rate=0.50, mgmt_fee=0.02, perf_fee=0.25)
     payload = {
         "Ret": (df["Ret"] * 100).tolist(),
         "Investor": (df["Investor"] * 100).tolist(),
@@ -349,14 +302,5 @@ def api_public_compensation_chart():
     }
     return jsonify(payload)
 
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     app.run(debug=True)
-

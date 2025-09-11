@@ -166,6 +166,8 @@ def performance_metrics(email, json_file="investors.json"):
     # --- Locked-in return (today → last CSV date) ---
     T_locked = (date_future - today).days
     locked_in = ((1 + Ret_future) / (1 + Ret_today)) - 1
+    print("Ret_today:", Ret_today)
+    print("Ret_future:", Ret_future)
     if T_locked > 0:
         gross_ann = (1 + locked_in) ** (365 / T_locked) - 1
         hurdle_ann = H   # already annual rate from JSON
