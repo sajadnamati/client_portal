@@ -1,244 +1,304 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="fund-section py-5">
-  <div class="fund-wrapper">
-
-    <!-- Personalized Greeting 
-    <div class="fund-info">
-      <h2 class="fw-bold mb-4">
-        Welcome back{% if user %}, {{ user.name }}{% endif %}
-      </h2>
-      <p class="text-muted">
-        This is your personalized investment report.
-      </p>
-    </div>
--->
-
-
-    <!-- Left side: Fund Explanation -->
-    <div class="fund-info">
-      <h2 class="fw-bold mb-4">Vega Core Fund</h2>
-      
-      <div class="fund-details">
-        <h4>Welcome back, Dear {% if investor_name %} {{ investor_name }}{% endif %}</h4>
-        <p class="text-muted mb-4 text-justify">
-          Thanks for being with us, here is your personalized investment report.
-        </p>
-
-        <h4>Key Features</h4>
-        <ul class="list-unstyled">
-          <li class="mb-2"><strong>Focus:</strong> Future Market</li>
-          <li class="mb-2"><strong>Strategy:</strong> Volatility-Managed Calendar Spread</li>
-          <li class="mb-2"><strong>Minimum Investment:</strong> $5000</li>
-          <li class="mb-2"><strong>Management Fee:</strong> 2% annually</li>
-          <li class="mb-2"><strong>Performance Fee:</strong> 25% of profits above 50% hurdle</li>
+<div class="container-fluid px-2 px-md-4 my-3">
+  <!-- Big mosaic wrapper -->
+  <div class="frame-card w-100">
+    <div class="frame-body">
+      <div class="px-2 px-md-3">
+      <!-- Page-level nav (Investment Report / Documents) -->
+        <ul class="nav nav-pills frame-tabs mb-4" id="reportTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-report-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-report"
+                    type="button" role="tab" aria-controls="tab-report" aria-selected="true">
+              Investment Report
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-docs-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-docs"
+                    type="button" role="tab" aria-controls="tab-docs" aria-selected="false">
+              Documents
+            </button>
+          </li>
         </ul>
+      
+      <!-- Tab panes (must wrap BOTH panes) -->
+      <div class="tab-content" id="reportTabsContent">
 
-        
-        <h4>Performance Metrics</h4>
-          <div class="metrics-grid small">
-            <div class="metric-item">
-              <span class="metric-label">YTD Fund Return (Before fees):</span>
-              <span class="metric-value text-success">
-                {% if metrics.ytd_return %}{{ (metrics.ytd_return * 100) | round(2) }}%{% else %}—{% endif %}
-              </span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Your Portfolio Value (NAV) (After Fees):</span>
-              <span class="metric-value">
-                {% if metrics.portfolio_value_nav %}
-                  {{ "{:,.0f}".format(metrics.portfolio_value_nav) }} IRR
-                {% else %}
-                  —
-                {% endif %}
-              </span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Annualized Return (IRR) (After Fees):</span>
-              <span class="metric-value text-success">
-                {% if metrics.irr %}{{ (metrics.irr * 100) | round(2) }}%{% else %}—{% endif %}
-              </span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Locked-In Return Ahead:</span>
-              <span class="metric-value">
-                {% if metrics.locked_in_return %}{{ (metrics.locked_in_return * 100) | round(2) }}%{% else %}—{% endif %}
-              </span>
-            </div>
-            <div class="metric-item d-flex flex-wrap align-items-center">
-              <span class="metric-label small text-muted me-2">Fees*:</span>
-              <span class="small text-muted me-3">
-                Fixed: {% if metrics.management_fees_total is not none %}
-                  {{ "{:,.0f}".format(metrics.management_fees_total) }} IRR
-                {% else %}—{% endif %}
-              </span>
-              <span class="small text-muted me-3">
-                Perf: {% if metrics.performance_fees_total is not none %}
-                  {{ "{:,.0f}".format(metrics.performance_fees_total) }} IRR
-                {% else %}—{% endif %}
-              </span>
-              <span class="small text-muted">
-                Total: {% if metrics.total_fees is not none %}
-                  {{ "{:,.0f}".format(metrics.total_fees) }} IRR
-                {% else %}—{% endif %}
-              </span>
-            </div>
-            
-          </div>
+        <!-- REPORT pane -->
+        <div class="tab-pane fade show active" id="tab-report" role="tabpanel" aria-labelledby="tab-report-btn">
+          <section class="fund-section py-5">
+            <div class="fund-wrapper">
 
-      </div>
-    </div>
+              <!-- Left side: Fund Explanation -->
+              <div class="fund-info">
+                <h2 class="fw-bold mb-4">Vega Core Fund</h2>
+                <div class="fund-details">
+                  <h4>Welcome back, Dear {% if investor_name %} {{ investor_name }}{% endif %}</h4>
+                  <p class="text-muted mb-4 text-justify">
+                    Thanks for being with us, here is your personalized investment report.
+                  </p>
 
-    <!-- Right side: Interactive Chart -->
-    <div class="chart-container">
-      <h4>Performance Chart</h4>
+                  <h4>Key Features</h4>
+                  <ul class="list-unstyled">
+                    <li class="mb-2"><strong>Focus:</strong> Future Market</li>
+                    <li class="mb-2"><strong>Strategy:</strong> Volatility-Managed Calendar Spread</li>
+                    <li class="mb-2"><strong>Minimum Investment:</strong> $5000</li>
+                    <li class="mb-2"><strong>Management Fee:</strong> 2% annually</li>
+                    <li class="mb-2"><strong>Performance Fee:</strong> 25% of profits above 50% hurdle</li>
+                  </ul>
 
-      <!-- Controls: stack on mobile, 3-up on desktop -->
-      <div class="chart-controls mb-3">
-        <div class="row g-2">
-          <div class="col-12 col-md-4">
-            <label for="startDate" class="form-label">Start Date:</label>
-            <input type="date" id="startDate" class="form-control" />
-          </div>
-
-          <div class="col-12 col-md-4">
-            <label for="endDate" class="form-label">End Date:</label>
-            <input type="date" id="endDate" class="form-control" />
-          </div>
-
-          <div class="col-12 col-md-4 d-grid d-md-flex align-items-end">
-            <button id="updateChart" class="btn btn-primary">Update</button>
-
-            <!-- Series dropdown -->
-            <div class="btn-group mt-2 mt-md-0 ms-md-2">
-              <button id="seriesToggle"
-                      class="btn btn-outline-secondary dropdown-toggle"
-                      data-bs-toggle="dropdown"
-                      aria-expanded="false">
-                Indices
-              </button>
-              <div id="seriesMenu" class="dropdown-menu p-3" style="min-width: 260px; max-height: 300px; overflow:auto;">
-                <div class="d-flex justify-content-between mb-2">
-                  <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
-                  <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+                  <h4>Performance Metrics</h4>
+                  <div class="metrics-grid small">
+                    <div class="metric-item">
+                      <span class="metric-label">YTD Fund Return (Before fees):</span>
+                      <span class="metric-value text-success">
+                        {% if metrics.ytd_return %}{{ (metrics.ytd_return * 100) | round(2) }}%{% else %}—{% endif %}
+                      </span>
+                    </div>
+                    <div class="metric-item">
+                      <span class="metric-label">Your Portfolio Value (NAV) (After Fees):</span>
+                      <span class="metric-value">
+                        {% if metrics.portfolio_value_nav %}
+                          {{ "{:,.0f}".format(metrics.portfolio_value_nav) }} IRR
+                        {% else %}—{% endif %}
+                      </span>
+                    </div>
+                    <div class="metric-item">
+                      <span class="metric-label">Annualized Return (IRR) (After Fees):</span>
+                      <span class="metric-value text-success">
+                        {% if metrics.irr %}{{ (metrics.irr * 100) | round(2) }}%{% else %}—{% endif %}
+                      </span>
+                    </div>
+                    <div class="metric-item">
+                      <span class="metric-label">Locked-In Return Ahead: (After Fees)</span>
+                      <span class="metric-value">
+                        {% if metrics.locked_in_return %}{{ (metrics.locked_in_return * 100) | round(2) }}%{% else %}—{% endif %}
+                      </span>
+                    </div>
+                    <div class="metric-item d-flex flex-wrap align-items-center">
+                      <span class="metric-label small text-muted me-2">Fees*:</span>
+                      <span class="small text-muted me-3">
+                        Fixed: {% if metrics.management_fees_total is not none %}
+                          {{ "{:,.0f}".format(metrics.management_fees_total) }} IRR
+                        {% else %}—{% endif %}
+                      </span>
+                      <span class="small text-muted me-3">
+                        Perf: {% if metrics.performance_fees_total is not none %}
+                          {{ "{:,.0f}".format(metrics.performance_fees_total) }} IRR
+                        {% else %}—{% endif %}
+                      </span>
+                      <span class="small text-muted">
+                        Total: {% if metrics.total_fees is not none %}
+                          {{ "{:,.0f}".format(metrics.total_fees) }} IRR
+                        {% else %}—{% endif %}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div id="seriesControls"></div>
+              </div>
+
+              <!-- Right side: Interactive Chart -->
+              <div class="chart-container">
+                <h4>Performance Chart</h4>
+
+                <div class="chart-controls mb-3">
+                  <!-- ROW 1: Start / End / Update + Indices -->
+                  <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-4">
+                      <label for="startDate" class="form-label">Start Date:</label>
+                      <input type="date" id="startDate" class="form-control" />
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                      <label for="endDate" class="form-label">End Date:</label>
+                      <input type="date" id="endDate" class="form-control" />
+                    </div>
+
+                    <div class="col-12 col-md-4 d-grid d-md-flex align-items-end gap-2">
+                      <button id="updateChart" class="btn btn-primary">Update</button>
+
+                      <div class="btn-group">
+                        <button id="seriesToggle"
+                                class="btn btn-outline-secondary dropdown-toggle"
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                          Indices
+                        </button>
+                        <div id="seriesMenu" class="dropdown-menu p-3"
+                            style="min-width:260px; max-height:300px; overflow:auto;">
+                          <div class="d-flex justify-content-between mb-2">
+                            <button id="seriesSelectAll" type="button" class="btn btn-sm btn-link">Select all</button>
+                            <button id="seriesSelectNone" type="button" class="btn btn-sm btn-link">None</button>
+                          </div>
+                          <div id="seriesControls"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ROW 2: log under the Start Date column only -->
+                  <div class="row g-2 mt-1">
+                    <div class="col-12 col-md-4">
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="logToggle">
+                        <label class="form-check-label ms-1" for="logToggle">Log</label>
+                      </div>
+                    </div>
+                    <!-- keep grid spacing for the rest; nothing here -->
+                    <div class="col-12 col-md-8"></div>
+                  </div>
+                </div>
+
+                <div class="chart-area" id="perf-wrap" style="min-height:260px; height:500px; margin-bottom:0;">
+                  <canvas id="fundChart" style="width:100%; height:100%; display:block;"></canvas>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- ✅ Give the chart a real height; canvas fills it -->
-      <div class="chart-area" id="perf-wrap" style="min-height:260px; height:500px; margin-bottom:0;">
-        <canvas id="fundChart" style="width:100%; height:100%; display:block;"></canvas>
-      </div>
-    </div>
-  </div>
+            <!-- Second row: Compensation Structure -->
+            <div class="fund-wrapper">
+              <div class="fund-info">
+                <h4 class="fw-bold mb-3">Compensation Structure</h4>
+                <p class="text-muted text-justify mt-3">
+                  Our compensation model is designed to align the interests of the fund manager with those of our investors,
+                  ensuring that meaningful rewards are earned only when we generate exceptional value. The cornerstone of this
+                  philosophy is the <strong>hurdle rate</strong> — a predefined minimum return threshold that must be achieved
+                  before any performance fees are charged. By setting a high hurdle rate, in our case 40% annually, we create a
+                  results-driven environment that rewards strategic risk-taking and disciplined execution, while protecting
+                  investors from paying performance fees during periods of sub-par market conditions. This approach ensures that
+                  we only participate in profits that represent substantial outperformance beyond the already ambitious benchmark.
+                </p>
+                <div class="mt-4">
+                  <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      Fixed Management Fee<span>2% annually *</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      Hurdle Rate<span>50% annually *</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      Manager’s Share of Return Above Hurdle<span>25% *</span>
+                    </li>
+                  </ul>
+                </div>
+                <p class="small text-muted mt-3">
+                  * All parameters are subject to change based on prevailing market conditions, regulatory updates,
+                  and the fund’s strategic objectives. Any such changes will be communicated to investors in advance.
+                </p>
+              </div>
 
-  <!-- Second row: Compensation Structure -->
-  <div class="fund-wrapper">
-    <div class="fund-info">
-      <h4 class="fw-bold mb-3">Compensation Structure</h4>
-      
-        <p class="text-muted text-justify mt-3">
-          Our compensation model is designed to align the interests of the fund manager with those of our investors,
-          ensuring that meaningful rewards are earned only when we generate exceptional value. The cornerstone of this
-          philosophy is the <strong>hurdle rate</strong> — a predefined minimum return threshold that must be achieved
-          before any performance fees are charged. By setting a high hurdle rate, in our case 40% annually, we create a
-          results-driven environment that rewards strategic risk-taking and disciplined execution, while protecting
-          investors from paying performance fees during periods of sub-par market conditions. This approach ensures that
-          we only participate in profits that represent substantial outperformance beyond the already ambitious benchmark.
-        </p>
+              <div class="chart-container">
+                <h4>Compensation Chart</h4>
+                <div class="chart-area" style="height:400px;">
+                  <canvas id="compensationChart"></canvas>
+                </div>
+              </div>
+            </div>
 
-        <div class="mt-4">
-          <ul class="list-group">
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              Fixed Management Fee<span>2% annually *</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              Hurdle Rate<span>50% annually *</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              Manager’s Share of Return Above Hurdle<span>25% *</span>
-            </li>
-          </ul>
-        </div>
-
-        <p class="small text-muted mt-3">
-          * All parameters are subject to change based on prevailing market conditions, regulatory updates,
-          and the fund’s strategic objectives. Any such changes will be communicated to investors in advance.
-          
-        </p>
-      
-    </div>
-
-    <div class="chart-container">
-      <h4>Compensation Chart</h4>
-        <div class="chart-area" style="height:400px;">
-          <canvas id="compensationChart"></canvas>
-        </div>
-      
-    </div>
-  </div>
-  <!--Thirs row: Compensation Structure -->
-  <div class="fund-wrapper">
-    <div class="fund-info">
-      <h4 class="fw-bold mb-3">Performance Reporting</h4>
-      
-        <p class="text-muted text-justify mt-3">
-          Investor returns are reported on a money-weighted IRR basis, calculated from each investor’s
-           contribution cash flows and terminal portfolio value. Fund-level performance is presented
-            using time-weighted returns for comparability with benchmarks.Performance fees are assessed
-             <strong>per contribution</strong> under a hard hurdle with whole-return sharing. For each subscription,
-              fees apply only if the realized return exceeds the hurdle rate. When this occurs, the
-               investor retains the greater of the hurdle rate or 75% of the total return, with the
-                fund receiving the balance. If performance falls below the hurdle, no performance
-                 fee is charged. This contribution-based structure ensures that new investments are never
+            <!-- Third row: Performance Reporting -->
+            <div class="fund-wrapper">
+              <div class="fund-info">
+                <h4 class="fw-bold mb-3">Performance Reporting</h4>
+                <p class="text-muted text-justify mt-3">
+                  Investor returns are reported on a money-weighted IRR basis, calculated from each investor’s
+                  contribution cash flows and terminal portfolio value. Fund-level performance is presented
+                  using time-weighted returns for comparability with benchmarks. Performance fees are assessed
+                  <strong>per contribution</strong> under a hard hurdle with whole-return sharing. For each subscription,
+                  fees apply only if the realized return exceeds the hurdle rate. When this occurs, the
+                  investor retains the greater of the hurdle rate or 75% of the total return, with the
+                  fund receiving the balance. If performance falls below the hurdle, no performance
+                  fee is charged. This contribution-based structure ensures that new investments are never
                   charged on performance earned before their entry, while the hard hurdle provides
-                   investors with downside protection and aligns compensation with realized results.
-                   <br><br>
-                   On the right, contributions are shown as negative cash flows at their dates; the terminal portfolio value
-                   (latest NAV in the selected window) is shown as a positive cash flow. 
-        </p>
-    </div>
+                  investors with downside protection and aligns compensation with realized results.
+                  <br><br>
+                  On the right, contributions are shown as negative cash flows at their dates; the terminal portfolio value
+                  (latest NAV in the selected window) is shown as a positive cash flow.
+                </p>
+              </div>
 
-    <div class="chart-container">
-      <h4>Your Contributions Chart</h4>
-      <div class="chart-area" style="height:320px;">
-        <canvas id="cashFlowChart"></canvas>
-      </div>
-    </div>
-  </div>
-  <!--Thirs row: Projection -->
-  <div class="fund-wrapper">
-    <div class="fund-info">
-      <h4 class="fw-bold mb-3">Forward Curve Trading Projection</h4>
-      
-        <p class="text-muted text-justify mt-3">
-          As a forward-curve trading fund, our core strategy is implemented through calendar spreads. 
-          This approach does not rely on outright directional bets on commodity prices, but rather on the
-           relative value between different maturities along the curve. Because spreads tend to mean-revert
-            and exhibit more stable dynamics than flat price movements, the strategy allows us to project fund
-             performance with greater confidence. For investors, this means that your current account balance
-              is not static: it is expected to grow over time at the projected rate implied by existing forward
-               positions. While these projections are subject to market conditions and risk management adjustments,
-                they provide a transparent view of the growth trajectory to which your capital is currently exposed.<br><br>
-                The chart on the right illustrates how we expect your current account to evolve under the fund’s 
-                forward curve calendar spread strategy, shown net of all management and performance fees.
-        </p>
-    </div>
+              <div class="chart-container">
+                <h4>Your Contributions Chart</h4>
+                <div class="chart-area" style="height:320px;">
+                  <canvas id="cashFlowChart"></canvas>
+                </div>
+              </div>
+            </div>
 
-    <div class="chart-container">
-      <h4>Projection Chart</h4>
-      <div class="chart-area" style="height:320px;">
-        <canvas id="ProjectionChart"></canvas>
-      </div>
-    </div>
-  </div>
-</section>
+            <!-- Fourth row: Projection -->
+            <div class="fund-wrapper">
+              <div class="fund-info">
+                <h4 class="fw-bold mb-3">Forward Curve Trading Projection</h4>
+                <p class="text-muted text-justify mt-3">
+                  As a forward-curve trading fund, our core strategy is implemented through calendar spreads. 
+                  This approach does not rely on outright directional bets on commodity prices, but rather on the
+                  relative value between different maturities along the curve. Because spreads tend to mean-revert
+                  and exhibit more stable dynamics than flat price movements, the strategy allows us to project fund
+                  performance with greater confidence. For investors, this means that your current account balance
+                  is not static: it is expected to grow over time at the projected rate implied by existing forward
+                  positions. While these projections are subject to market conditions and risk management adjustments,
+                  they provide a transparent view of the growth trajectory to which your capital is currently exposed.
+                  <br><br>
+                  The chart on the right illustrates how we expect your current account to evolve under the fund’s 
+                  forward curve calendar spread strategy, shown net of all management and performance fees.
+                </p>
+              </div>
 
+              <div class="chart-container">
+                <h4>Projection Chart</h4>
+                <div class="chart-area" style="height:320px;">
+                  <canvas id="ProjectionChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div><!-- /#tab-report -->
+
+        <div class="tab-pane fade" id="tab-docs" role="tabpanel" aria-labelledby="tab-docs-btn">
+          <section class="fund-section py-5">
+            <div class="fund-wrapper">
+              <div class="d-flex justify-content-between flex-wrap gap-3">
+                <div class="flex-fill" style="max-width: 320px;">
+                  <div class="card h-100">
+                    <div class="card-body text-center">
+                      <h5 class="card-title mb-3">Contracts</h5>
+                      <ul class="list-unstyled mb-0" id="docs-contracts">
+                        <li class="text-muted">No files yet.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-fill" style="max-width: 320px;">
+                  <div class="card h-100">
+                    <div class="card-body text-center">
+                      <h5 class="card-title mb-3">Correspondence</h5>
+                      <ul class="list-unstyled mb-0" id="docs-letters">
+                        <li class="text-muted">No files yet.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-fill" style="max-width: 320px;">
+                  <div class="card h-100">
+                    <div class="card-body text-center">
+                      <h5 class="card-title mb-3">Financial Receipts</h5>
+                      <ul class="list-unstyled mb-0" id="docs-receipts">
+                        <li class="text-muted">No files yet.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div><!-- /#tab-docs -->
+
+      </div><!-- /.tab-content -->
+    </div>
+    </div><!-- /.frame-body -->
+  </div><!-- /.frame-card -->
+</div><!-- /.container-fluid -->
 
 <!-- Chart.js & Moment.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -332,6 +392,7 @@ function renderSeriesControls() {
 function updateChart() {
   if (!fundPayload || !Array.isArray(fundPayload.dates)) return;
 
+  const isLog = document.getElementById('logToggle')?.checked === true; // 👈 NEW
   const labels = fundPayload.dates;
   const datasets = [];
   const palette = ['#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1','#20c997'];
@@ -340,9 +401,11 @@ function updateChart() {
     if (!selectedSeries.has(name)) return;
     const matrix = fundPayload.series_matrix || [];
     const arr = Array.isArray(matrix[i]) ? matrix[i] : [];
+
     datasets.push({
       label: name,
-      data: arr.map(v => (v == null ? null : v * 100)),
+      // if log toggled: plot ln(1+R); keep ×100 scale for continuity
+      data: arr.map(v => (v == null ? null : (isLog ? Math.log1p(v) : v) * 100)),
       borderWidth: 0.8,
       tension: 0.1,
       borderColor: palette[datasets.length % palette.length],
@@ -355,6 +418,7 @@ function updateChart() {
 
   const ctx = document.getElementById('fundChart').getContext('2d');
   if (fundChart) fundChart.destroy();
+
   fundChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -364,25 +428,39 @@ function updateChart() {
       scales: {
         x: { title: { display: true, text: 'Date' } },
         y: {
-          title: { display: true, text: 'Return since start (%)' },
-          ticks: { callback: v => (v ?? 0).toFixed(1) + '%' }
+          // clarify axis when log is on
+          title: { display: true, text: isLog ? 'log(1+R) × 100' : 'Return since start (%)' },
+          ticks: {
+            callback: v => isLog ? (v ?? 0).toFixed(2) : (v ?? 0).toFixed(1) + '%'
+          }
         }
       },
       plugins: {
-        title: { display: true, text: 'Vega Core Fund — Rebased Performance (Selected Window)' },
+        title: {
+          display: true,
+          text: isLog
+            ? 'Vega Core Fund — log(1+R) (Selected Window)'
+            : 'Vega Core Fund — Rebased Performance (Selected Window)'
+        },
         legend: { display: true, position: 'top' },
         tooltip: {
           callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : '—'}`
+            label: (ctx) => {
+              const val = ctx.parsed.y;
+              if (val == null) return `${ctx.dataset.label}: —`;
+              // keep tooltip consistent with axis formatting
+              return isLog
+                ? `${ctx.dataset.label}: ${val.toFixed(3)}`
+                : `${ctx.dataset.label}: ${val.toFixed(2)}%`;
+            }
           }
         }
       }
     }
   });
 }
-
-
-
+// Re-render when the toggle changes  ← NEW
+document.getElementById('logToggle')?.addEventListener('change', updateChart);
 
 
 /** Fund Chart Event Binding - */
@@ -663,6 +741,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderLockedInProjection(projData);
   } catch (e) {
     console.error("⚠️ Projection chart failed", e);
+  }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const map = {
+    "Contracts": "docs-contracts",
+    "Correspondence": "docs-letters",
+    "Financial Receipts": "docs-receipts"
+  };
+
+  try {
+    const r = await fetch("/api/docs", { cache: "no-store" });
+    if (!r.ok) throw new Error("docs api " + r.status);
+    const data = await r.json();
+
+    for (const [cat, ulId] of Object.entries(map)) {
+      const ul = document.getElementById(ulId);
+      if (!ul) continue;
+
+      const files = data[cat] || [];
+      ul.innerHTML = "";
+
+      if (!files.length) {
+        ul.innerHTML = '<li class="text-muted">No files yet.</li>';
+        continue;
+      }
+
+      for (const f of files) {
+        const sizeKB = Math.max(1, Math.round((f.size || 0) / 1024));
+        const when = f.modified ? new Date(f.modified).toLocaleDateString() : "";
+        const li = document.createElement("li");
+        li.className = "d-flex justify-content-between align-items-center";
+        li.innerHTML = `
+          <a href="${f.url}" target="_blank" rel="noopener">${f.name}</a>
+          <span class="text-muted small ms-2">${sizeKB} KB${when ? ", " + when : ""}</span>
+        `;
+        ul.appendChild(li);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load docs", e);
   }
 });
 </script>

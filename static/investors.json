@@ -11,16 +11,16 @@
     "Fiscal_year_start": "2024-12-22"
   },
   "sadjad.namati@gmail.com": {
-    "name": "Arash Alavian",
-    "join_date": "2024-10-16",
+    "name": "Mr. Alireza Sepahsalari",
+    "join_date": "2025-09-7",
     "currency": "IRR",
-    "performance_file": "arashalavian-gh-gmail-com-data2.csv",
-    "transactions_file": "arashalavian-gh-gmail-com-data2.csv",
+    "performance_file": "sepahsalari_alireza2.csv",
+    "transactions_file": "sepahsalari_alireza2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2024-10-16",
-    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2"
+    "Fiscal_year_start": "2025-09-7",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv3"
   },
   "arashalavian.gh@gmail.com": {
     "name": "Arash Alavian",
@@ -35,16 +35,16 @@
     "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2"
   },
   "sajjadnoun@gmail.com": {
-    "name": "Mr. Alireza Sepahsalari",
-    "join_date": "2025-09-7",
+    "name": "Arash Alavian",
+    "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "sepahsalari_alireza2.csv",
-    "transactions_file": "sepahsalari_alireza2.csv",
+    "performance_file": "arashalavian-gh-gmail-com-data2.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data2.csv",
     "hurdle_rate": 0.5,
     "management_fee": 0.02,
     "performance_fee": 0.25,
-    "Fiscal_year_start": "2025-09-7",
-    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv3"
+    "Fiscal_year_start": "2024-10-16",
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2"
   },
   "pirooz4264@gmail.com": {
     "name": "Pirooz Yousefpoor",

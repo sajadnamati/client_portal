@@ -5,6 +5,9 @@ from flask import Flask, redirect, url_for, session, render_template, request, j
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
 from werkzeug.middleware.proxy_fix import ProxyFix
+import re
+from flask import send_from_directory, abort
+from werkzeug.utils import safe_join
 # (optional) server-side sessions are more robust behind VPNs/ad-blockers
 try:
     from flask_session import Session
@@ -25,6 +28,32 @@ import json
 import pandas as pd
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# -------- Per-user documents configuration --------
+DOCS_ROOT = os.path.join(BASE_DIR, "static", "user_docs")  # where files live on disk
+DOC_CATEGORIES = {
+    "Contracts": "Contracts",
+    "Correspondence": "Correspondence",
+    "Financial Receipts": "Financial Receipts",
+}
+ALLOWED_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".csv", ".txt", ".zip"}
+
+def _current_user_email():
+    # Works with MOCK_MODE or real OAuth
+    user = session.get("user") or {}
+    return user.get("email")
+
+def _user_key_from_email(email: str) -> str:
+    if email.endswith("@gmail.com"):
+        local = email[:-10]
+    else:
+        local = email.split("@", 1)[0]
+    # keep only safe chars; hyphen is allowed
+    local = re.sub(r"[^a-zA-Z0-9_.-]", "_", local)
+    # BEFORE: return f"{local}_data"
+    return f"{local}-data"   # ← hyphen to match your folder name
+
+def _user_docs_root(email: str) -> str:
+    return os.path.join(DOCS_ROOT, _user_key_from_email(email))
 
 app = Flask(__name__)
 
@@ -56,7 +85,7 @@ if HAVE_FLASK_SESSION:
     Session(app)
 
 # --- Toggle this for mock login ---
-MOCK_MODE = False
+MOCK_MODE = True
 
 oauth = OAuth(app)
 google = oauth.register(
@@ -302,5 +331,60 @@ def api_public_compensation_chart():
     }
     return jsonify(payload)
 
+
+@app.get("/api/docs")
+def api_list_docs():
+    email = _current_user_email()
+    if not email:
+        return jsonify({"error": "not_authenticated"}), 401
+
+    root = _user_docs_root(email)
+    payload = {}
+
+    for cat_label, subdir in DOC_CATEGORIES.items():
+        dir_path = os.path.join(root, subdir)
+        # Optionally create empty folders so UI shows "No files yet"
+        os.makedirs(dir_path, exist_ok=True)
+
+        files = []
+        try:
+            for name in os.listdir(dir_path):
+                if name.startswith("."):
+                    continue
+                ext = os.path.splitext(name)[1].lower()
+                if ext not in ALLOWED_EXT:
+                    continue
+                fp = os.path.join(dir_path, name)
+                if not os.path.isfile(fp):
+                    continue
+                st = os.stat(fp)
+                files.append({
+                    "name": name,
+                    "size": st.st_size,
+                    "modified": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+                    "url": url_for("serve_user_doc", category=cat_label, filename=name),
+                })
+        except FileNotFoundError:
+            pass
+
+        files.sort(key=lambda x: x["modified"], reverse=True)
+        payload[cat_label] = files
+
+    return jsonify(payload)
+
+@app.get("/docs/<category>/<path:filename>")
+def serve_user_doc(category, filename):
+    email = _current_user_email()
+    if not email:
+        abort(401)
+    if category not in DOC_CATEGORIES:
+        abort(404)
+
+    base = os.path.join(_user_docs_root(email), DOC_CATEGORIES[category])
+    safe_path = safe_join(base, filename)
+    if not safe_path or not os.path.isfile(safe_path):
+        abort(404)
+
+    return send_from_directory(base, filename, as_attachment=False)
 if __name__ == "__main__":
     app.run(debug=True)

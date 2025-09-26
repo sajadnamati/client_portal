@@ -282,5 +282,72 @@ footer {
 
 
 
+/* changed added on 25th September 2025, to add contract and doc section */
 
+/* One big unified frame */
+.frame-card {
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.06);
+  border: 1px solid rgba(0,0,0,.06);
+  background: #fff;
+}
 
+/* Inside the big frame, space sections consistently */
+.frame-body {
+  padding: 1.25rem;      /* mobile */
+}
+@media (min-width: 992px){
+  .frame-body { padding: 2rem 2rem; }   /* desktop */
+}
+
+/* Optional: de-emphasize inner cards so they feel part of the mosaic */
+.frame-body .card {
+  border: 1px solid rgba(0,0,0,.05);
+  box-shadow: none;
+}
+
+/* Make the inner tab nav match your neutral card theme */
+.frame-tabs .nav-link {
+  color: #495057;              /* dark gray text */
+  background-color: transparent;
+}
+
+.frame-tabs .nav-link.active,
+.frame-tabs .nav-link.active:hover {
+  color: #212529;              /* almost black text */
+  background-color: #e9ecef;   /* Bootstrap gray-200 */
+  border-radius: 0.5rem;       /* keep soft pill corners */
+  font-weight: 500;
+}
+
+.frame-tabs .nav-link:hover {
+  background-color: #f8f9fa;   /* lighter hover gray */
+}
+
+#tab-docs .card-title {
+  white-space: nowrap;
+}
+
+/* --- Documents tiles --- */
+#tab-docs .card {
+  border: 1px solid #e5e7eb;       /* subtle border */
+  border-radius: 1rem;             /* larger, like fund-wrapper panels */
+  background-color: #fff;          /* clean white background */
+  box-shadow: none;                /* no heavy shadows, match flat look */
+  transition: all 0.2s ease-in-out;
+  text-align: center;              /* consistent text alignment */
+  padding: 1.5rem 1rem;            /* breathing room inside */
+}
+
+/* Hover feedback (optional, for UX consistency) */
+#tab-docs .card:hover {
+  border-color: #d1d5db;           /* slightly darker border on hover */
+  transform: translateY(-2px);     /* subtle lift */
+}
+
+/* --- Title fix --- */
+#tab-docs .card-title {
+  font-size: 1.05rem;              /* slightly smaller to prevent wrapping */
+  font-weight: 600;
+  white-space: nowrap;             /* lock single-line */
+}
