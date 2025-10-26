@@ -114,7 +114,7 @@ def fund():
 def client_portal():
     if not session.get("user"):
         return redirect(url_for("login", next="client_portal"))
-
+    selected_year = (request.args.get("year") or "").strip() or None  # 👈 NEW
     investor_email = session["user"].get("email")
 
     try:
@@ -136,7 +136,7 @@ def client_portal():
     currency = investor_info.get("currency", "USD")
 
     try:
-        metrics = performance_metrics(investor_email, "static/investors.json")
+        metrics = performance_metrics(investor_email, "static/investors.json",year=selected_year)
     except Exception as e:
         print("⚠️ Metrics calculation failed:", e)
         metrics = {
@@ -155,6 +155,7 @@ def client_portal():
         investor_name=investor_name,
         performance_file=performance_file,
         join_date=join_date,
+        selected_year=selected_year,
         currency=currency,
         metrics=metrics,
         cf_data=metrics.get("cashflow_chart")
@@ -219,7 +220,17 @@ def api_fund_series():
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
     inv = cfg.get(investor_email, {})
-    csv_path = inv.get("link") or os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
+
+    # 👇 NEW: pick year-specific link if provided (e.g., "2024-Link"), else fallback to "link" or local file
+    year = (request.args.get("year") or "").strip()
+    if year:
+        csv_path = inv.get(f"{year}-Link") \
+            or inv.get("link") \
+            or os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
+    else:
+        csv_path = inv.get("link") \
+            or os.path.join(BASE_DIR, "static", inv.get("performance_file", ""))
+
     fees = inv.get("fees", {})
     fixed   = float(fees.get("management_fee", 0.02))
     hurdle  = float(fees.get("hurdle_rate", 0.50))
@@ -245,6 +256,7 @@ def api_fund_projection():
         return jsonify({"error": "unauthorized"}), 401
 
     investor_email = session["user"].get("email")
+    year = (request.args.get("year") or "").strip() or None  # 👈 NEW
     json_path = os.path.join(BASE_DIR, "static", "investors.json")
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -255,7 +267,7 @@ def api_fund_projection():
     hurdle  = float(fees.get("hurdle_rate", 0.50))
     perffee = float(fees.get("performance_fee", 0.25))
 
-    metrics = performance_metrics(investor_email, "static/investors.json")
+    metrics = performance_metrics(investor_email, "static/investors.json", year=year)  # 👈 CHANGED
     current_nav = metrics.get("portfolio_value_nav", 1000.0)
     locked_in_after_fee = metrics.get("locked_in_after_fee", 0.0)
 

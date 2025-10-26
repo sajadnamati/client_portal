@@ -28,7 +28,7 @@ def xirr(cashflows, dates):
 
 
 # --- Main function ---
-def performance_metrics(email, json_file="investors.json"):
+def performance_metrics(email, json_file="investors.json", year: str | None = None):
     # Load investor parameters
     json_path = os.path.join(BASE_DIR, "static", "investors.json")
     with open(json_path, "r", encoding="utf-8") as f:
@@ -54,7 +54,7 @@ def performance_metrics(email, json_file="investors.json"):
     #df = pd.read_csv(csv_path, skip_blank_lines=True)
     
     
-    df = _load_csv(inv)
+    df = _load_csv(inv, year=year)
     
     
     
@@ -132,8 +132,8 @@ def performance_metrics(email, json_file="investors.json"):
             cashflows.append(-contrib)
             dates.append(dateA)
 
-            print(f"\nRow {i}: Date={dateA.date()}, Contrib={contrib}, RetA={RetA}, "
-                  f"R={R:.4f}, T={T}, MgFee={MgFee:.2f}, PerfFee={PerfFee:.2f}, yearH={yearH:.2f}")
+            print(f"\nRow {i}: Date={dateA.date()}, Contrib={contrib}, RetA={R}, "
+                  f"R={R:.4f}, T={T}, MgFee={MgFee:.2f}, PerfFee={PerfFee:.2f}, yearH={yearH:.10f}")
 
     total_mgmt = sum(mgmt_fees)
     total_perf = sum(perf_fees)
@@ -489,11 +489,19 @@ def performance_metric_public(csv_path: str):
     }
 
 
-def _load_csv(inv):
-    """Return a DataFrame from either a Google Sheets link or a local CSV file."""
-    if "link" in inv and inv["link"]:
-        print(f"🌐 Loading from Google Sheets: {inv['link']}")
-        df = pd.read_csv(inv["link"], skip_blank_lines=True)
+def _load_csv(inv, year: str | None = None):
+    """Return a DataFrame from either a Google Sheets link or a local CSV file.
+       If year is provided and e.g. '2024-Link' exists, use that instead of 'link'.
+    """
+    link = None
+    if year:
+        link = inv.get(f"{year}-Link")
+    if not link:
+        link = inv.get("link")
+
+    if link:
+        print(f"🌐 Loading from Google Sheets: {link}")
+        df = pd.read_csv(link, skip_blank_lines=True)
     else:
         csv_path = os.path.join(BASE_DIR, "static", inv["performance_file"])
         print(f"📂 Loading local CSV: {csv_path}")
