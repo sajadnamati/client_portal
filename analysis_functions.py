@@ -104,10 +104,21 @@ def performance_metrics(email, json_file="investors.json", year: str | None = No
     mgmt_fees, perf_fees, cashflows, dates = [], [], [], []
 
     # --- Loop over contributions (only actual rows, up to CSV 'today') ---
+    # --- Loop over contributions (only actual rows, up to CSV 'today') ---
     df_until_today = df[df["Date"] <= today]
     for i, row in df_until_today.iterrows():
         contrib = row["Contribution"]
         if contrib != 0:
+            # --- NEW: get hurdle rate for this contribution ---
+            if "Hurdle Rate" in df_until_today.columns:
+                # use the per-row value if present and valid
+                try:
+                    hurdle_rate = float(row["Hurdle Rate"])
+                except Exception:
+                    hurdle_rate = H  # fallback to global
+            else:
+                hurdle_rate = H  # fallback when column absent
+
             dateA = row["Date"]
             RetA = row["Ret"]
 
@@ -120,7 +131,7 @@ def performance_metrics(email, json_file="investors.json", year: str | None = No
             # T = today - contribution_date
             T = (today - dateA).days
             MgFee = ((1 + Mg) ** (T / 365) - 1) * contrib
-            yearH = (1 + H) ** (T / 365) - 1
+            yearH = (1 + hurdle_rate) ** (T / 365) - 1   # 👈 per-contribution hurdle
 
             if R > yearH:
                 PerfFee = (R - max(yearH, (1 - Pf) * R)) * contrib
@@ -132,8 +143,9 @@ def performance_metrics(email, json_file="investors.json", year: str | None = No
             cashflows.append(-contrib)
             dates.append(dateA)
 
-            print(f"\nRow {i}: Date={dateA.date()}, Contrib={contrib}, RetA={R}, "
-                  f"R={R:.4f}, T={T}, MgFee={MgFee:.2f}, PerfFee={PerfFee:.2f}, yearH={yearH:.10f}")
+            print(f"\nRow {i}: Date={dateA.date()}, Contrib={contrib}, "
+                f"HurdleRate={hurdle_rate}, R={R:.4f}, "
+                f"T={T}, MgFee={MgFee:.2f}, PerfFee={PerfFee:.2f}, yearH={yearH:.6f}")
 
     total_mgmt = sum(mgmt_fees)
     total_perf = sum(perf_fees)
