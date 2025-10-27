@@ -85,7 +85,7 @@ if HAVE_FLASK_SESSION:
     Session(app)
 
 # --- Toggle this for mock login ---
-MOCK_MODE = True
+MOCK_MODE = False
 
 oauth = OAuth(app)
 google = oauth.register(
@@ -248,6 +248,8 @@ def api_fund_series():
         perf_fee=perffee
     )
     payload["fiscal_year_start"] = inv.get("Fiscal_year_start")
+    payload["resolved_start"] = start        # 👈 ADD
+    payload["resolved_end"]   = end          # 👈 ADD
     return jsonify(_clean_for_json(payload))
 
 @app.get("/api/fund-projection")

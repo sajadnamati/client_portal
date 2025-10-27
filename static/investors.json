@@ -43,20 +43,20 @@
     "2025-Link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2-2025"
   },
   "sajjadnoun@gmail.com": {
-    "name": "Dr. Ali Salim",
+    "name": "Arash Alavian",
     "join_date": "2024-10-16",
     "currency": "IRR",
-    "performance_file": "A_Salim2.csv",
-    "transactions_file": "A_Salim2.csv",
+    "performance_file": "arashalavian-gh-gmail-com-data2.csv",
+    "transactions_file": "arashalavian-gh-gmail-com-data2.csv",
     "fees": {
       "hurdle_rate": 0.7,
       "management_fee": 0.02,
       "performance_fee": 0.25
     },
     "Fiscal_year_start": "2024-10-16",
-    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv5",
-    "2024-Link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv5-2024",
-    "2025-Link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv5-2025"
+    "link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2",
+    "2024-Link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2-2024",
+    "2025-Link": "https://docs.google.com/spreadsheets/d/1-f9vZ7zGOg2vrViKBlxo07AwiYXLhg2rmlowyU7OKBo/gviz/tq?tqx=out:csv&sheet=Inv2-2025"
   },
   "pirooz4264@gmail.com": {
     "name": "Pirooz Yousefpoor",
