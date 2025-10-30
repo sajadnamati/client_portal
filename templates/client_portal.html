@@ -886,23 +886,33 @@ document.getElementById('reportYear')?.addEventListener('change', () => {
   const sel = document.getElementById('reportYear');
   const y = sel ? (sel.value || '') : '';
   const p = new URLSearchParams(location.search);
-  if (y) p.set('year', y); else p.delete('year');
 
-  // Optional: align the date inputs to the chosen year to avoid empty windows
-  if (y) {
-    const today = new Date();
-    const thisYear = String(today.getFullYear());
-    const startStr = `${y}-10-17`;
-    const endStr = (y === thisYear) ? today.toISOString().split('T')[0] : `${y}-12-31`;
-    p.set('start', startStr);
-    p.set('end', endStr);
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  let startStr = '';
+  let endStr   = '';
+
+  if (y === '2024') {
+    // fixed fiscal window for 2024 view
+    startStr = '2024-10-17';
+    endStr   = '2025-10-17';
+  } else if (y === '2025') {
+    // next fiscal window: from 18 Oct 2025 to today
+    startStr = '2025-10-18';
+    endStr   = todayStr;
   } else {
-    p.delete('start'); p.delete('end');
+    // fallback if some other year appears
+    startStr = y ? `${y}-01-01` : '';
+    endStr   = todayStr;
   }
 
-  // Trigger full reload so server-rendered metrics & cashflow update
+  if (y) p.set('year', y); else p.delete('year');
+  if (startStr) p.set('start', startStr); else p.delete('start');
+  if (endStr)   p.set('end', endStr);     else p.delete('end');
+
+  // full reload so metrics + chart + projection all align
   location.search = p.toString();
 });
-
 </script>
 {% endblock %}

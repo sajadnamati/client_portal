@@ -114,7 +114,7 @@ def fund():
 def client_portal():
     if not session.get("user"):
         return redirect(url_for("login", next="client_portal"))
-    selected_year = (request.args.get("year") or "").strip() or None  # 👈 NEW
+    selected_year = (request.args.get("year") or "2025").strip() or None  # 👈 NEW
     investor_email = session["user"].get("email")
 
     try:
@@ -236,8 +236,24 @@ def api_fund_series():
     hurdle  = float(fees.get("hurdle_rate", 0.50))
     perffee = float(fees.get("performance_fee", 0.25))
 
-    start = request.args.get("start") or inv.get("Fiscal_year_start", "2024-10-01")
-    end   = request.args.get("end") or datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
+    year = (request.args.get("year") or "").strip()
+
+    # 👇 NEW: smart start/end defaults by year
+    start = request.args.get("start")
+    end   = request.args.get("end")
+
+    if not start or not end:
+        if year == "2024":
+            start = "2024-10-17"
+            end   = "2025-10-17"
+        elif year == "2025":
+            start = "2025-10-18"
+            end   = today
+        else:
+            # generic fallback
+            start = inv.get("Fiscal_year_start", "2024-10-01")
+            end   = today
 
     payload = compute_rebased_indices(
         csv_path=csv_path,
@@ -258,7 +274,7 @@ def api_fund_projection():
         return jsonify({"error": "unauthorized"}), 401
 
     investor_email = session["user"].get("email")
-    year = (request.args.get("year") or "").strip() or None  # 👈 NEW
+    year = (request.args.get("year") or "2025").strip() or None  # 👈 NEW
     json_path = os.path.join(BASE_DIR, "static", "investors.json")
     with open(json_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)

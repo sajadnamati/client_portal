@@ -507,12 +507,22 @@ def _load_csv(inv, year: str | None = None):
     """
     link = None
     if year:
-        link = inv.get(f"{year}-Link")
+        candidates = [
+            f"{year}-Link",     # current code
+            f"{year}-link",     # lowercase L
+            f"link_{year}",     # another common pattern
+            f"link-{year}",     # another common pattern
+            print(f"🌐 Loading from Google Sheets: {year}")
+        ]
+        for key in candidates:
+            if key in inv:
+                link = inv[key]
+                break
     if not link:
         link = inv.get("link")
 
     if link:
-        print(f"🌐 Loading from Google Sheets: {link}")
+        print(f"🌐 Loading from Google Sheets2: {link}")
         df = pd.read_csv(link, skip_blank_lines=True)
     else:
         csv_path = os.path.join(BASE_DIR, "static", inv["performance_file"])
